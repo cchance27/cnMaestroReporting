@@ -15,17 +15,23 @@ namespace cnMaestro
             _manager = manager;
         }
 
-        public Task<IEnumerable<CnTowers>> GetTowersTask(string network) => 
-            _manager.GetFullApiResultsAsync<CnTowers>($"/networks/{network}/towers");
+        public Task<IList<CnTowers>> GetTowersTask(string network, string filter = null) => 
+            _manager.GetFullApiResultsAsync<CnTowers>($"/networks/{network}/towers", filter);
 
-        public Task<IEnumerable<CnTowers>> GetNetworksTask() => 
-            _manager.GetFullApiResultsAsync<CnTowers>("/networks");
+        public Task<IList<CnTowers>> GetNetworksTask(string filter = null) => 
+            _manager.GetFullApiResultsAsync<CnTowers>("/networks", filter);
 
-        public Task<IEnumerable<CnDevice>> GetDeviceTask(string macAddress) =>
-            _manager.GetFullApiResultsAsync<CnDevice>($"/devices/{macAddress}");
+        public Task<IList<CnDevice>> GetDeviceTask(string macAddress, string filter = null) =>
+            _manager.GetFullApiResultsAsync<CnDevice>($"/devices/{macAddress}", filter);
 
-        public Task<IEnumerable<CnDevice>> GetFilteredDevicesTask(string filter) =>
-            _manager.GetFullApiResultsAsync<CnDevice>($"/devices", filter);
+        public Task<IList<CnStatistics>> GetDeviceStatsTask(string macAddress, string filter = null) =>
+            _manager.GetFullApiResultsAsync<CnStatistics>($"/devices/{macAddress}/statistics", filter);
 
+        public Task<IList<CnPerformance>> GetDevicePerfTask(string macAddress, DateTime startTime, DateTime endTime)
+        {
+            var startT = startTime.ToString("yyyy-MM-ddTHH:mm:ss.fffffffK");
+            var endT = endTime.ToString("yyyy-MM-ddTHH:mm:ss.fffffffK");
+            return _manager.GetFullApiResultsAsync<CnPerformance>($"/devices/{macAddress}/performance?start_time={startT}&stop_time={endT}");
+        }
     }
 }

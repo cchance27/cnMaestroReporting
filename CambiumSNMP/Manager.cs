@@ -126,8 +126,7 @@ namespace CambiumSNMP
                     OIDs.cambiumProductFreq,
                     OIDs.cambiumProductType,
                     OIDs.cambiumMac,
-                    OIDs.cambiumSoftwareVer,
-                    OIDs.cambiumActiveTxPower
+                    OIDs.cambiumSoftwareVer
                     );
 
                 return new CambiumSM(
@@ -155,8 +154,7 @@ namespace CambiumSNMP
                     cambiumProductFreq: sm[OIDs.cambiumProductFreq],
                     cambiumProductType: sm[OIDs.cambiumProductType],
                     cambiumMac: sm[OIDs.cambiumMac],
-                    cambiumSoftwareVer: sm[OIDs.cambiumSoftwareVer],
-                    cambiumActiveTxPower: sm[OIDs.cambiumActiveTxPower]
+                    cambiumSoftwareVer: sm[OIDs.cambiumSoftwareVer]
                     );
             }
             catch (Exception e)
@@ -179,8 +177,7 @@ namespace CambiumSNMP
                     OIDs.cambiumProductFreq,
                     OIDs.cambiumProductType,
                     OIDs.cambiumMac,
-                    OIDs.cambiumSoftwareVer,
-                    OIDs.cambiumActiveTxPower
+                    OIDs.cambiumSoftwareVer
                     );
 
                 return new CambiumAP(
@@ -192,8 +189,7 @@ namespace CambiumSNMP
                     cambiumProductFreq: ap[OIDs.cambiumProductFreq],
                     cambiumProductType: ap[OIDs.cambiumProductType],
                     cambiumMac: ap[OIDs.cambiumMac],
-                    cambiumSoftwareVer: ap[OIDs.cambiumSoftwareVer],
-                    cambiumActiveTxPower: ap[OIDs.cambiumActiveTxPower]
+                    cambiumSoftwareVer: ap[OIDs.cambiumSoftwareVer]
                     );
             }
             catch (Exception e)

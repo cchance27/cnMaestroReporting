@@ -128,7 +128,7 @@ namespace cnMaestro
         /// <param name="endPoint"></param>
         /// <param name="filter"></param>
         /// <returns></returns>
-        public async Task<IEnumerable<T>> GetFullApiResultsAsync<T>(string endPoint, string filter = null) where T : ICnMaestroDataType
+        public async Task<IList<T>> GetFullApiResultsAsync<T>(string endPoint, string filter = null) where T : ICnMaestroDataType
         {
             // T is the data type we're expecting (e.g. CnDevice)
             var taskList = new List<Task>();

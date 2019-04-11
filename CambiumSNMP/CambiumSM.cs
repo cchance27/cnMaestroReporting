@@ -29,9 +29,8 @@ namespace CambiumSNMP
         public string cambiumProductType { get; }
         public string cambiumMac { get; }
         public string cambiumSoftwareVer { get; }
-        public Byte cambiumActiveTxPower { get; }
 
-        public CambiumSM(string sysName, string sysLocation, string sysContact, string cambiumAntennaGain, string smFrequencyHz, string smRadioDbm, string smRadioDbmH, string smRadioDbmV, string smRadioDbmMin, string smRadioDbmMax, string smRadioDbmAvg, string smRadioTxPower, string smRegisteredApMac, string smAdaptRateFull, string smAdaptRate, string smSessionTime, string smTotalBER, string smAirDelayNs, string smModFragmentPct, string smSnrV, string smSnrH, string cambiumProductFreq, string cambiumProductType, string cambiumMac, string cambiumSoftwareVer, string cambiumActiveTxPower)
+        public CambiumSM(string sysName, string sysLocation, string sysContact, string cambiumAntennaGain, string smFrequencyHz, string smRadioDbm, string smRadioDbmH, string smRadioDbmV, string smRadioDbmMin, string smRadioDbmMax, string smRadioDbmAvg, string smRadioTxPower, string smRegisteredApMac, string smAdaptRateFull, string smAdaptRate, string smSessionTime, string smTotalBER, string smAirDelayNs, string smModFragmentPct, string smSnrV, string smSnrH, string cambiumProductFreq, string cambiumProductType, string cambiumMac, string cambiumSoftwareVer)
         {
             this.sysName = sysName;
             this.sysLocation = sysLocation;
@@ -59,10 +58,6 @@ namespace CambiumSNMP
             this.cambiumProductType = cambiumProductType;
             this.cambiumMac = cambiumMac;
             this.cambiumSoftwareVer = cambiumSoftwareVer;
-
-            cambiumActiveTxPower = cambiumActiveTxPower.Split(" ")[0];
-            if (cambiumActiveTxPower != "SNMP") // We only do this if we didn't get a SNMP error.
-                Byte.Parse(cambiumActiveTxPower);
         }
     }                
 }

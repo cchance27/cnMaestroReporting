@@ -123,7 +123,7 @@ namespace cnMaestro.cnDataType
         public readonly  string wlan_status;
 
         [JsonProperty("dl_frame_utilization")]
-        public readonly  float dl_frame_utilization;
+        public readonly  float? dl_frame_utilization;
 
         [JsonProperty("dl_mcs")]
         public readonly  int dl_mcs;
@@ -192,13 +192,13 @@ namespace cnMaestro.cnDataType
         public readonly  string tx_capacity;
 
         [JsonProperty("tx_power")]
-        public readonly  string tx_power;
+        public readonly  int tx_power;
 
         [JsonProperty("tx_quality")]
         public readonly  string tx_quality;
 
         [JsonProperty("ul_frame_utilization")]
-        public readonly  float ul_frame_utilization;
+        public readonly  float? ul_frame_utilization;
 
         [JsonProperty("ul_mcs")]
         public readonly  int ul_mcs;

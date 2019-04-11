@@ -20,7 +20,6 @@
             cambiumProductType = _cambiumGenStatus + "266.0",
             cambiumMac = _cambiumGenStatus + "3.0",
             cambiumSoftwareVer = _cambiumGenStatus + "1.0",
-            cambiumActiveTxPower = _cambiumGenStatus + "232.0",
 
             apFrequencyHz = _cambiumApConfig + "2.0",
             apMuMimoMode = _cambiumApStatus + "38.0",

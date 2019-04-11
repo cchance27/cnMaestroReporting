@@ -18,13 +18,10 @@ namespace CambiumSignalValidator
         {
             fetchConfiguration(); // Load our appSettings
 
-            cnManager = new cnMaestro.Manager(
-                cnMaestroConf.ApiClientID,
-                cnMaestroConf.ApiClientSecret,
-                cnMaestroConf.ApiDomain,
-                cnMaestroConf.ApiPageLimit,
-                cnMaestroConf.ApiThreads
-                );
+            // Currently the program is only being used for testing various functions we will eventually have a real workflow.
+
+
+            cnManager = new cnMaestro.Manager(cnMaestroConf);
 
             await cnManager.ConnectAsync();
             var cnApi = new cnMaestro.Api(cnManager);
@@ -44,10 +41,11 @@ namespace CambiumSignalValidator
 
                 Task.WaitAll(SpecificDevice, Towers, Networks);
 
-                foreach (CnTowers tower in Towers.Result)
+                foreach (var tower in Towers.Result)
                 {
-                    Console.WriteLine(tower.)
+                    Console.WriteLine(tower.Name);
                 }
+
                 var snmp  = new CambiumSNMP.Manager(snmpConf.Community, 2);
                 var sm = snmp.GetCambiumSM("192.168.253.8");
                 var ap = snmp.GetCambiumAP("172.16.10.73");

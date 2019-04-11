@@ -6,18 +6,18 @@ namespace cnMaestro.cnDataType
     public struct CnTowers: ICnMaestroDataType
     {
         [JsonProperty("id")]
-        readonly string Id;
+        public readonly string Id;
 
         [JsonProperty("managed_account")]
-        readonly string ManagedAccount;
+        public readonly string ManagedAccount;
 
         [JsonProperty("name")]
-        readonly string Name;
+        public readonly string Name;
 
         [JsonProperty("location")]
-        readonly CnLocation Location;
+        public readonly CnLocation Location;
 
         [JsonProperty("network")]
-        readonly string Network;
+        public readonly string Network;
     }
 }

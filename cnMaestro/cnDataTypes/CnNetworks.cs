@@ -5,12 +5,12 @@ namespace cnMaestro.cnDataType
     public struct CnNetworks: ICnMaestroDataType
     {
         [JsonProperty("id")]
-        readonly string Id;
+        public readonly string Id;
 
         [JsonProperty("managed_account")]
-        readonly string ManagedAccount;
+        public readonly string ManagedAccount;
 
         [JsonProperty("name")]
-        readonly string Name;
+        public readonly string Name;
     }
 }

@@ -6,3 +6,5 @@ recieve additional information, we will run comparisons based of Free Path Space
 calculate how far off the various radios are from where they should be.
 
 This will present a solid report for targeted visits to repair problems before clients can complain.
+
+To compile and run appsettings.example.json must be renamed and configured as appsettings.json

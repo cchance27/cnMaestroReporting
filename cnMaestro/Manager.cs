@@ -25,6 +25,15 @@ namespace cnMaestro
         private TextWriter _outputLog { get; }
         private HttpClient _client { get; }
 
+        /// <summary>
+        /// Constructor that creates a manager with all the basic values provided.
+        /// </summary>
+        /// <param name="clientID"></param>
+        /// <param name="clientSecret"></param>
+        /// <param name="apiDomain"></param>
+        /// <param name="apiFetchLimit"></param>
+        /// <param name="threads"></param>
+        /// <param name="logger"></param>
         public Manager(string clientID, string clientSecret, string apiDomain, int apiFetchLimit = 100, int threads = 4, TextWriter logger = null)
         {
             if (_credentials == null)
@@ -51,6 +60,16 @@ namespace cnMaestro
             }
         }
 
+        /// <summary>
+        /// Creating a manager from a valid Settings Object, optional textlogger
+        /// </summary>
+        /// <param name="settings"></param>
+        /// <param name="logger"></param>
+        public Manager(Settings settings, TextWriter logger = null): this(settings.ApiClientID, settings.ApiClientSecret, settings.ApiDomain, settings.ApiPageLimit, settings.ApiThreads, logger) { }
+
+        /// <summary>
+        /// Connect to the API and grab our valid bearer token we will be using
+        /// </summary>
         public async Task ConnectAsync()
         {
             HttpRequestMessage hRequest = new HttpRequestMessage(HttpMethod.Post, _tokenEndpoint);
@@ -70,12 +89,27 @@ namespace cnMaestro
             }
         }
 
-        // Standard non filtered API Call
-        private async Task<CnApiResponse<T>> CallApiAsync<T>(string endPoint, int limit = 100, int offset = 0) where T : ICnMaestroDataType
+        /// <summary>
+        /// This calls our API and we can provide limits, offsets, and filters as optional values.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="endPoint"></param>
+        /// <param name="filter"></param>
+        /// <param name="limit"></param>
+        /// <param name="offset"></param>
+        /// <returns></returns>
+        private async Task<CnApiResponse<T>> CallApiAsync<T>(string endPoint, string filter = null, int limit = 100, int offset = 0) where T : ICnMaestroDataType
         {
-            HttpResponseMessage response = await _client.GetAsync(_apiURL + endPoint + $"?limit={limit}&offset={offset}");
-            _outputLog.WriteLine($"Fetching: {_apiURL}{endPoint}?limit={limit}&offset={offset}");
-            
+            HttpResponseMessage response;
+            if (String.IsNullOrEmpty(filter))
+            {
+                response = await _client.GetAsync(_apiURL + endPoint + $"?limit={limit}&offset={offset}");
+                _outputLog.WriteLine($"Fetching: {_apiURL}{endPoint}?limit={limit}&offset={offset}");
+            } else {
+                response = await _client.GetAsync(_apiURL + endPoint + $"?filter={filter}&limit={limit}&offset={offset}");
+                _outputLog.WriteLine($"Fetching: {_apiURL}{endPoint}?{filter}&limit={limit}&offset={offset}");
+            }
+
             string responseText = await response.Content.ReadAsStringAsync();
             if (response.IsSuccessStatusCode)
             {
@@ -87,38 +121,27 @@ namespace cnMaestro
             }
         }
 
-        // Allow us to pass a filter "fields=id,name" and limit/offset
-        private async Task<CnApiResponse<T>> CallApiAsync<T>(string endPoint, string filter, int limit = 100, int offset = 0) where T : ICnMaestroDataType
-        {
-            HttpResponseMessage response = await _client.GetAsync(_apiURL + endPoint + $"?filter={filter}&limit={limit}&offset={offset}");
-            _outputLog.WriteLine($"Fetching: {_apiURL}{endPoint}?{filter}&limit={limit}&offset={offset}");
-
-            string responseText = await response.Content.ReadAsStringAsync();
-            if (response.IsSuccessStatusCode)
-            {
-                return JsonConvert.DeserializeObject<CnApiResponse<T>>(responseText);
-            }
-            else
-            {
-                throw new WebException(responseText);
-            }
-        }
-
+        /// <summary>
+        /// Call the API with auto expansion to get all results on all pages, not just the first page.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="endPoint"></param>
+        /// <param name="filter"></param>
+        /// <returns></returns>
         public async Task<IEnumerable<T>> GetFullApiResultsAsync<T>(string endPoint, string filter = null) where T : ICnMaestroDataType
         {
-            //T is the data type we're expecting (e.g. CnDevice)
+            // T is the data type we're expecting (e.g. CnDevice)
             var taskList = new List<Task>();
             var offset = 0;
 
             ConcurrentBag<T> results = new ConcurrentBag<T>();
 
             // firstCall is made so we get the count we need to pull
-            var firstCall = await CallApiAsync<T>(endPoint, _apiFetchLimit, offset);
+            var firstCall = await CallApiAsync<T>(endPoint, filter, _apiFetchLimit, offset);
             Array.ForEach<T>(firstCall.data, r => results.Add(r));
 
+            // We've got our first page so we now know how many records we have and how many we need total
             var totalToFetch = firstCall.paging.Total;
-            
-            //We've got our first page so we should only be calling again if we need more.
             var recordsFetching = firstCall.data.Count<T>();
 
             while (recordsFetching <= totalToFetch)
@@ -132,16 +155,8 @@ namespace cnMaestro
                         try
                         {
                             Interlocked.Add(ref offset, _apiFetchLimit);
-                            CnApiResponse<T> result;
-                            if (String.IsNullOrWhiteSpace(filter))
-                            {
-                                result = await CallApiAsync<T>(endPoint, _apiFetchLimit, offset);
-                            }
-                            else
-                            {
-                                result = await CallApiAsync<T>(endPoint, filter, _apiFetchLimit, offset);
-                            }
-
+                            CnApiResponse<T> result = await CallApiAsync<T>(endPoint, filter, _apiFetchLimit, offset);
+                            
                             Array.ForEach<T>(result.data, r => results.Add(r));
                         }
                         finally

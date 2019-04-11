@@ -4,6 +4,7 @@ using System.Net;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using System.IO;
+using cnMaestro.cnDataType;
 
 namespace CambiumSignalValidator
 {
@@ -41,10 +42,13 @@ namespace CambiumSignalValidator
                 //var APstatistics = await cnManager.CallApiAsync<CnStatistics>("/devices/0A:00:3E:BB:0B:A2/statistics");
                 //var APperformance = await cnManager.CallApiAsync<CnPerformance>("/devices/0A:00:3E:BB:0B:A2/performance?start_time=2019-03-31T18:12:11+0000&stop_time=2019-04-01T18:12:11+0000");
 
-                Task.WaitAll(SpecificDevice);
+                Task.WaitAll(SpecificDevice, Towers, Networks);
 
-
-                var snmp  = new CambiumSNMP.Manager("Canopy", 2);
+                foreach (CnTowers tower in Towers.Result)
+                {
+                    Console.WriteLine(tower.)
+                }
+                var snmp  = new CambiumSNMP.Manager(snmpConf.Community, 2);
                 var sm = snmp.GetCambiumSM("192.168.253.8");
                 var ap = snmp.GetCambiumAP("172.16.10.73");
 

@@ -63,12 +63,10 @@ namespace CambiumSignalValidator
                         continue;
                     }
 
-                    int smAirDelayNs;
-                    double smFrequencyHz;
-                    Double.TryParse(snmpSm[OIDs.smFrequencyHz], out smFrequencyHz);
-                    Int32.TryParse(snmpSm[OIDs.smAirDelayNs], out smAirDelayNs);
+                    Double.TryParse(snmpSm[OIDs.smFrequencyHz], out double smFrequencyHz);
+                    Int32.TryParse(snmpSm[OIDs.smAirDelayNs], out int smAirDelayNs);
 
-                    double smDistanceM = (double)RFCalc.MetersFromAirDelay(smAirDelayNs, smFrequencyHz, false);
+                    double smDistanceM = RFCalc.MetersFromAirDelay(smAirDelayNs, smFrequencyHz, false);
 
                     var thisAPModel = Devices[thisSmStats.ap_mac].product;
                     var thisApTx = APstats[thisSmStats.ap_mac].radio.tx_power;
@@ -84,8 +82,6 @@ namespace CambiumSignalValidator
                         Tx: cambium.Types[thisAPModel].Radio(thisApTx, 16),
                         Rx: cambium.Types[thisSM.product].Radio(thisSmStats.radio.tx_power));
 
-                    var smAPL = thisSmStats.radio.dl_rssi;
-
                     // apEPL === The power transmitted from the SM and what we expect to see on the AP
                     var apEPL = RFCalc.EstimatedPowerLevel(
                         smDistanceM,
@@ -93,8 +89,6 @@ namespace CambiumSignalValidator
                         0,
                         Tx: cambium.Types[thisSM.product].Radio(thisSmStats.radio.tx_power),
                         Rx: cambium.Types[thisAPModel].Radio(thisApTx, 16));
-
-                    var apAPL = thisSmStats.radio.ul_rssi;
 
                     finalSubResults.Add(new SubscriberRadioInfo()
                     {
@@ -105,16 +99,16 @@ namespace CambiumSignalValidator
                         IP = thisSM.ip,
                         Model = thisSM.product,
                         SmEPL = Math.Round(smEPL, 2),
-                        SmAPL = smAPL ?? -1,
+                        SmAPL = thisSmStats.radio.dl_rssi ?? -1,
                         ApModel = thisAPModel,
                         ApEPL = Math.Round(apEPL, 2),
-                        ApAPL = apAPL ?? -1,
+                        ApAPL = thisSmStats.radio.ul_rssi ?? -1,
                         APTxPower = thisApTx ?? cambium.Types[thisAPModel].MaxTransmit,
                         SMTxPower = thisSmStats.radio.tx_power ?? cambium.Types[thisSM.product].MaxTransmit,
                         SMMaxTxPower = cambium.Types[thisSM.product].MaxTransmit
                     });
 
-                    Console.WriteLine($"Found Device: {thisSM.name} - SM PL Diff {Math.Abs((double)smEPL - (double)smAPL)} AP PL Diff: {Math.Abs((double)smEPL - (double)smAPL)}");
+                    Console.WriteLine($"Found Device: {thisSM.name} - SM PL Diff {Math.Abs((double)smEPL - (double)thisSmStats.radio.dl_rssi)} AP PL Diff: {Math.Abs((double)smEPL - (double)thisSmStats.radio.ul_rssi)}");
                 }
 
                 SaveCSV(finalSubResults.ToList(), "output.xlsx");

@@ -97,6 +97,19 @@ namespace CambiumSNMP
             } 
         }
 
+        public string GetOID(string ipAddress, string OID)
+        {
+            try
+            {
+                return GetOids(ipAddress, OID)[OID];
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"SM Fetch Error: {e.Message}");
+                return null;
+            }
+        }
+
         public CambiumSM GetCambiumSM(string ipAddress)
         {
             try

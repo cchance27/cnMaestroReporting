@@ -9,6 +9,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using OfficeOpenXml;
+using CambiumSNMP;
 
 namespace CambiumSignalValidator
 {
@@ -54,25 +55,30 @@ namespace CambiumSignalValidator
                     
                     // We need to grab airdelay from SNMP
                     // TODO: maybe a seperate routine just to grab airdelay not everything, since we only need that
-                    var snmpSm = snmp.GetCambiumSM(thisSM.ip);
+                    var snmpSm = snmp.GetOids(thisSM.ip, OIDs.smAirDelayNs, OIDs.smFrequencyHz);
                     if (snmpSm == null)
                     {
                         Console.WriteLine("SNMP Error: " + thisSM.ip);
                         continue;
                     }
 
-                    double smDistanceM = (double)RFCalc.MetersFromAirDelay(snmpSm.smAirDelayNs, snmpSm.smFrequencyHz, false);
+                    int smAirDelayNs;
+                    double smFrequencyHz;
+                    Double.TryParse(snmpSm[OIDs.smFrequencyHz], out smFrequencyHz);
+                    Int32.TryParse(snmpSm[OIDs.smAirDelayNs], out smAirDelayNs);
+
+                    double smDistanceM = (double)RFCalc.MetersFromAirDelay(smAirDelayNs, smFrequencyHz, false);
 
                     var thisAPModel = Devices[thisSmStats.ap_mac].product;
                     var thisApTx = APstats[thisSmStats.ap_mac].radio.tx_power;
                     var thisAPName = Devices[thisSmStats.ap_mac].name;
 
-                    var smFSPL = RFCalc.FreeSpacePathLoss(smDistanceM, snmpSm.smFrequencyHz);
+                    var smFSPL = RFCalc.FreeSpacePathLoss(smDistanceM, smFrequencyHz);
 
                     // smEPL === The power transmitted from the AP and what we expect to see on the SM
                     var smEPL = RFCalc.EstimatedPowerLevel(
                         smDistanceM,
-                        snmpSm.smFrequencyHz,
+                        smFrequencyHz,
                         0, 
                         Tx: cambium.Types[thisAPModel].Radio(thisApTx, 16),
                         Rx: cambium.Types[thisSM.product].Radio(thisSmStats.radio.tx_power));
@@ -82,7 +88,7 @@ namespace CambiumSignalValidator
                     // apEPL === The power transmitted from the SM and what we expect to see on the AP
                     var apEPL = RFCalc.EstimatedPowerLevel(
                         smDistanceM,
-                        snmpSm.smFrequencyHz,
+                        smFrequencyHz,
                         0,
                         Tx: cambium.Types[thisSM.product].Radio(thisSmStats.radio.tx_power),
                         Rx: cambium.Types[thisAPModel].Radio(thisApTx, 16));

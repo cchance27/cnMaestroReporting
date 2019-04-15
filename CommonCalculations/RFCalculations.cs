@@ -23,13 +23,13 @@ namespace CommonCalculations
         public static Int32 SpeedOfLight = 299792458;
         public static Int32 NanoSecondsPerSecond = 1000000000;
 
-        public static Decimal FreqHzToWaveLength(int FreqHz) => SpeedOfLight / FreqHz;
-        public static Decimal FreqHzToMetersPerSec(int FreqHz) => FreqHzToWaveLength(FreqHz) * FreqHz;
-        public static Decimal FreqHzToNanoMetersPerSec(int FreqHz) => (FreqHzToWaveLength(FreqHz) * FreqHz) / NanoSecondsPerSecond;
+        public static Double FreqHzToWaveLength(double FreqHz) => SpeedOfLight / FreqHz;
+        public static Double FreqHzToMetersPerSec(int FreqHz) => FreqHzToWaveLength(FreqHz) * FreqHz;
+        public static Double FreqHzToNanoMetersPerSec(double FreqHz) => (FreqHzToWaveLength(FreqHz) * FreqHz) / NanoSecondsPerSecond;
 
-        public static Decimal MetersFromAirDelay(int AirDelayNS, int HzFrequency, bool OneWayAirDelayNS = false)
+        public static Double MetersFromAirDelay(int AirDelayNS, double HzFrequency, bool OneWayAirDelayNS = false)
         {
-            Decimal NanoMetersPerSec = RFCalc.FreqHzToNanoMetersPerSec(HzFrequency);
+            Double NanoMetersPerSec = RFCalc.FreqHzToNanoMetersPerSec(HzFrequency);
 
             // AirDelay is normally bi directional, but lets support handling it both ways based on flag
             Int32 AirDelayDistance = OneWayAirDelayNS ? AirDelayNS : AirDelayNS / 2;

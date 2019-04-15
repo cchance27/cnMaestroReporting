@@ -33,11 +33,12 @@ namespace CambiumSignalValidator
             var cnApi = new cnMaestro.Api(cnManager);
             try
             {
-                //var Networks = cnApi.GetNetworksTask();
-                var Towers = await cnApi.GetTowersAsync("default");
+                //var Networks = cnApi.GetNetworksTask(); // when we want to loop through remote networks?
+                var Towers = await cnApi.GetTowersAsync("default"); // TODO: Read network from config
 
                 //Currently Filtered to only a tower but set to "" to grab all devices.
                 // TODO: we can add a fields= filter so we can reduce how much we're pulling from API since we don't need much
+                // also we can do the URL Encoding for the towers automatically.
                 var AllDeviceStats = cnApi.GetMultipleDevStatsAsync("tower=Atrium");
                 var AllDevices = cnApi.GetMultipleDevicesAsync("tower=Atrium");
                 Task.WaitAll(AllDevices, AllDeviceStats);
@@ -47,7 +48,7 @@ namespace CambiumSignalValidator
 
                 ConcurrentBag<SubscriberRadioInfo> finalSubResults = new ConcurrentBag<SubscriberRadioInfo>();
 
-                var snmp = new CambiumSNMP.Manager(snmpConf.Community, 2);
+                var snmp = new CambiumSNMP.Manager(snmpConf.Community, snmpConf.Version, snmpConf.Retries);
 
                 // TODO: move this routine into a Task so it can be threaded.
                 foreach (var thisSmStats in AllDeviceStats.Result.Where(dev => dev.mode == "sm" && dev.status == "online"))

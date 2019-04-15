@@ -29,10 +29,10 @@ namespace cnMaestro.cnDataType
         public readonly string site;
 
         [JsonProperty("sm_count")]
-        public readonly Dictionary<string, float> sm_count;
+        public readonly Dictionary<string, double> sm_count;
 
         [JsonProperty("sm_drops")]
-        public readonly Dictionary<string, float> sm_drops;
+        public readonly Dictionary<string, double> sm_drops;
 
         [JsonProperty("timestamp")]
         public readonly string timestamp;
@@ -53,7 +53,7 @@ namespace cnMaestro.cnDataType
     public class CnFixedRadioPerformance
     {
         [JsonProperty("dl_frame_utilization")]
-        public readonly ReadOnlyDictionary<byte, float> dl_frame_utilization;
+        public readonly ReadOnlyDictionary<byte, double> dl_frame_utilization;
 
         [JsonProperty("dl_kbits")]
         public readonly ReadOnlyDictionary<byte, Int64?> dl_kbits;
@@ -74,10 +74,10 @@ namespace cnMaestro.cnDataType
         public readonly ReadOnlyDictionary<byte, int?> dl_retransmits_pct;
 
         [JsonProperty("dl_rssi")]
-        public readonly ReadOnlyDictionary<byte, float> dl_rssi;
+        public readonly ReadOnlyDictionary<byte, double> dl_rssi;
 
         [JsonProperty("dl_rssi_imbalance")]
-        public readonly ReadOnlyDictionary<byte, float> dl_rssi_imbalance;
+        public readonly ReadOnlyDictionary<byte, double> dl_rssi_imbalance;
 
         [JsonProperty("dl_snr")]
         public readonly ReadOnlyDictionary<byte, int?> dl_snr;
@@ -92,7 +92,7 @@ namespace cnMaestro.cnDataType
         public readonly ReadOnlyDictionary<byte, Int64?> dl_throughput;
 
         [JsonProperty("ul_frame_utilization")]
-        public readonly ReadOnlyDictionary<byte, float?> ul_frame_utilization;
+        public readonly ReadOnlyDictionary<byte, double?> ul_frame_utilization;
 
         [JsonProperty("ul_kbits")]
         public readonly ReadOnlyDictionary<byte, Int64?> ul_kbits;
@@ -113,10 +113,10 @@ namespace cnMaestro.cnDataType
         public readonly ReadOnlyDictionary<byte, int?> ul_retransmits_pct;
 
         [JsonProperty("ul_rssi")]
-        public readonly ReadOnlyDictionary<byte, float?> ul_rssi;
+        public readonly ReadOnlyDictionary<byte, double?> ul_rssi;
 
         [JsonProperty("ul_rssi_imbalance")]
-        public readonly ReadOnlyDictionary<byte, float?> ul_rssi_imbalance;
+        public readonly ReadOnlyDictionary<byte, double?> ul_rssi_imbalance;
 
         [JsonProperty("ul_snr")]
         public readonly ReadOnlyDictionary<byte, int?> ul_snr;

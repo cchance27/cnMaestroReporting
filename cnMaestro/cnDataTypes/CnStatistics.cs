@@ -123,7 +123,7 @@ namespace cnMaestro.cnDataType
         public readonly  string wlan_status;
 
         [JsonProperty("dl_frame_utilization")]
-        public readonly  float? dl_frame_utilization;
+        public readonly  double? dl_frame_utilization;
 
         [JsonProperty("dl_mcs")]
         public readonly  int? dl_mcs;
@@ -144,10 +144,10 @@ namespace cnMaestro.cnDataType
         public readonly  int? dl_retransmits_pct;
 
         [JsonProperty("dl_rssi")]
-        public readonly  float? dl_rssi;
+        public readonly  double? dl_rssi;
 
         [JsonProperty("dl_rssi_imbalance")]
-        public readonly  float? dl_rssi_imbalance;
+        public readonly  double? dl_rssi_imbalance;
 
         [JsonProperty("dl_snr")]
         public readonly  int? dl_snr;
@@ -198,7 +198,7 @@ namespace cnMaestro.cnDataType
         public readonly  string tx_quality;
 
         [JsonProperty("ul_frame_utilization")]
-        public readonly  float? ul_frame_utilization;
+        public readonly  double? ul_frame_utilization;
 
         [JsonProperty("ul_mcs")]
         public readonly  int? ul_mcs;
@@ -219,10 +219,10 @@ namespace cnMaestro.cnDataType
         public readonly  int? ul_retransmits_pct;
 
         [JsonProperty("ul_rssi")]
-        public readonly  float? ul_rssi;
+        public readonly  double? ul_rssi;
 
         [JsonProperty("ul_rssi_imbalance")]
-        public readonly  float? ul_rssi_imbalance;
+        public readonly  double? ul_rssi_imbalance;
 
         [JsonProperty("ul_snr")]
         public readonly  int? ul_snr;

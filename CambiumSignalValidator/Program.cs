@@ -7,10 +7,12 @@ using System.IO;
 using cnMaestro.cnDataType;
 using System.Linq;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
+using OfficeOpenXml;
 
 namespace CambiumSignalValidator
 {
-    internal class Program
+    internal partial class Program
     {
         private static cnMaestro.Manager cnManager { get; set; }
         private static cnMaestro.Settings cnMaestroConf = new cnMaestro.Settings();
@@ -42,6 +44,8 @@ namespace CambiumSignalValidator
                 var Devices = AllDevices.Result.Where(dev => dev.status == "online").ToDictionary(dev => dev.mac);
                 var APstats = AllDeviceStats.Result.Where(dev => dev.mode == "ap" && dev.status == "online").ToDictionary(ap => ap.mac);
 
+                ConcurrentBag<SubscriberRadioInfo> finalSubResults = new ConcurrentBag<SubscriberRadioInfo>();
+
                 var snmp = new CambiumSNMP.Manager(snmpConf.Community, 2);
                 foreach (var thisSmStats in AllDeviceStats.Result.Where(dev => dev.mode == "sm" && dev.status == "online"))
                 {
@@ -51,10 +55,17 @@ namespace CambiumSignalValidator
                     // We need to grab airdelay from SNMP
                     // TODO: maybe a seperate routine just to grab airdelay not everything, since we only need that
                     var snmpSm = snmp.GetCambiumSM(thisSM.ip);
+                    if (snmpSm == null)
+                    {
+                        Console.WriteLine("SNMP Error: " + thisSM.ip);
+                        continue;
+                    }
+
                     double smDistanceM = (double)RFCalc.MetersFromAirDelay(snmpSm.smAirDelayNs, snmpSm.smFrequencyHz, false);
 
-                    var myAPModel = Devices[thisSmStats.ap_mac].product;
-                    var myAPTX = APstats[thisSmStats.ap_mac].radio.tx_power;
+                    var thisAPModel = Devices[thisSmStats.ap_mac].product;
+                    var thisApTx = APstats[thisSmStats.ap_mac].radio.tx_power;
+                    var thisAPName = Devices[thisSmStats.ap_mac].name;
 
                     var smFSPL = RFCalc.FreeSpacePathLoss(smDistanceM, snmpSm.smFrequencyHz);
 
@@ -63,7 +74,7 @@ namespace CambiumSignalValidator
                         smDistanceM,
                         snmpSm.smFrequencyHz,
                         0, 
-                        Tx: cambium.Types[myAPModel].Radio(myAPTX, 16),
+                        Tx: cambium.Types[thisAPModel].Radio(thisApTx, 16),
                         Rx: cambium.Types[thisSM.product].Radio(thisSmStats.radio.tx_power));
 
                     var smAPL = thisSmStats.radio.dl_rssi;
@@ -74,20 +85,46 @@ namespace CambiumSignalValidator
                         snmpSm.smFrequencyHz,
                         0,
                         Tx: cambium.Types[thisSM.product].Radio(thisSmStats.radio.tx_power),
-                        Rx: cambium.Types[myAPModel].Radio(myAPTX, 16));
+                        Rx: cambium.Types[thisAPModel].Radio(thisApTx, 16));
 
                     var apAPL = thisSmStats.radio.ul_rssi;
 
-                    Console.WriteLine($"{thisSM.name} {smDistanceM.ToString("0")}m - {APstats[thisSmStats.ap_mac].name} SM EPL: {smEPL.ToString("0.##")} APL: {smAPL} | AP EPL: {apEPL.ToString("0.##")} APL: {apAPL}");
+                    finalSubResults.Add(new SubscriberRadioInfo()
+                    {
+                        Name = thisSM.name,
+                        Esn = thisSM.mac,
+                        APName = thisAPName,
+                        DistanceM = smDistanceM,
+                        Model = thisSM.product,
+                        SmEPL = Math.Round(smEPL, 2),
+                        SmAPL = smAPL ?? -1,
+                        ApModel = thisAPModel,
+                        ApEPL = Math.Round(apEPL, 2),
+                        ApAPL = apAPL ?? -1,
+                        APTxPower = thisApTx ?? cambium.Types[thisAPModel].MaxTransmit,
+                        SMTxPower = thisSmStats.radio.tx_power ?? cambium.Types[thisSM.product].MaxTransmit,
+                        SMMaxTxPower = cambium.Types[thisSM.product].MaxTransmit
+                    });
+
+                    
+                    Console.WriteLine($"Found Device: {thisSM.name} - SM PL Diff {Math.Abs((double)smEPL - (double)smAPL)} AP PL Diff: {Math.Abs((double)smEPL - (double)smAPL)}");
                 }
 
-                Console.WriteLine("Done");
-                Console.ReadLine();
+                using (var ep = new ExcelPackage())
+                {
+                    var x = finalSubResults.ToList();
+
+                    var ew = ep.Workbook.Worksheets.Add("450 Devices");
+                    ew.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(x, true);
+                    ew.Cells[ew.Dimension.Address].AutoFitColumns();
+                    ep.SaveAs(new FileInfo("output.xlsx"));
+                }
             }
             catch (WebException e)
             {
                 Console.WriteLine(e.Message);
             }
+            Console.WriteLine("Done");
             Console.ReadLine();
         }
 

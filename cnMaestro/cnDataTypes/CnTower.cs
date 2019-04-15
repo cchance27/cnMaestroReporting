@@ -1,8 +1,9 @@
-﻿using Newtonsoft.Json;
+﻿using cnMaestro.JsonType;
+using Newtonsoft.Json;
 
 namespace cnMaestro.cnDataType
 {
-    public struct CnNetworks: ICnMaestroDataType
+    public struct CnTower: ICnMaestroDataType
     {
         [JsonProperty("id")]
         public readonly string Id;
@@ -12,5 +13,11 @@ namespace cnMaestro.cnDataType
 
         [JsonProperty("name")]
         public readonly string Name;
+
+        [JsonProperty("location")]
+        public readonly CnLocation Location;
+
+        [JsonProperty("network")]
+        public readonly string Network;
     }
 }

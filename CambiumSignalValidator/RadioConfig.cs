@@ -1,13 +1,30 @@
 ﻿using CommonCalculations;
+using System.Collections.Generic;
 
 namespace CambiumSignalValidator
 {
-    public static class RadioConfig
+    public class RadioConfig
     {
-        // 450m : 14dBi antenna / 24dBm combined
-        // 450i : 16dBi antenna
-        // 450 : 16 dBi antenna
-        public static RFCalc.Radio CambiumAP(int TxPower, int Gain = 16) => new RFCalc.Radio { AntennaGain = Gain, RadioPower = TxPower, InternalLoss = 1 };
-        public static RFCalc.Radio CambiumSM(int TxPower, int Gain = 9) => new RFCalc.Radio { AntennaGain = Gain, RadioPower = TxPower, InternalLoss = 1 };
+        public Dictionary<string, RadioSettings> Types { get; set; }
+    }
+
+    public class RadioSettings
+    {
+        public int AntennaGain { get; set; }
+        public int MaxTransmit { get; set; }
+
+        public RFCalc.Radio Radio(int? actualTxPower) => new RFCalc.Radio
+        {
+            AntennaGain = AntennaGain,
+            RadioPower = actualTxPower ?? MaxTransmit,
+            InternalLoss = 1
+        };
+
+        public RFCalc.Radio Radio(int? actualTxPower, int AntennaGainOverride) => new RFCalc.Radio
+        {
+            AntennaGain = AntennaGainOverride,
+            RadioPower = actualTxPower ?? MaxTransmit,
+            InternalLoss = 1
+        };
     }
 }

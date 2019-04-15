@@ -126,7 +126,7 @@ namespace cnMaestro.cnDataType
         public readonly  float? dl_frame_utilization;
 
         [JsonProperty("dl_mcs")]
-        public readonly  int dl_mcs;
+        public readonly  int? dl_mcs;
 
         [JsonProperty("dl_modulation")]
         public readonly  string dl_modulation;
@@ -138,25 +138,25 @@ namespace cnMaestro.cnDataType
         public readonly  Int64? dl_pkts_loss;
 
         [JsonProperty("dl_retransmits")]
-        public readonly  int dl_retransmits;
+        public readonly  int? dl_retransmits;
 
         [JsonProperty("dl_retransmits_pct")]
-        public readonly  int dl_retransmits_pct;
+        public readonly  int? dl_retransmits_pct;
 
         [JsonProperty("dl_rssi")]
-        public readonly  float dl_rssi;
+        public readonly  float? dl_rssi;
 
         [JsonProperty("dl_rssi_imbalance")]
-        public readonly  float dl_rssi_imbalance;
+        public readonly  float? dl_rssi_imbalance;
 
         [JsonProperty("dl_snr")]
-        public readonly  int dl_snr;
+        public readonly  int? dl_snr;
 
         [JsonProperty("dl_snr_v")]
-        public readonly  int dl_snr_v;
+        public readonly  int? dl_snr_v;
 
         [JsonProperty("dl_snr_h")]
-        public readonly  int dl_snr_h;
+        public readonly  int? dl_snr_h;
 
         [JsonProperty("dl_throughput")]
         public readonly  Int64? dl_throughput;
@@ -192,7 +192,7 @@ namespace cnMaestro.cnDataType
         public readonly  string tx_capacity;
 
         [JsonProperty("tx_power")]
-        public readonly  int tx_power;
+        public readonly  int? tx_power;
 
         [JsonProperty("tx_quality")]
         public readonly  string tx_quality;
@@ -201,7 +201,7 @@ namespace cnMaestro.cnDataType
         public readonly  float? ul_frame_utilization;
 
         [JsonProperty("ul_mcs")]
-        public readonly  int ul_mcs;
+        public readonly  int? ul_mcs;
 
         [JsonProperty("ul_modulation")]
         public readonly  string ul_modulation;
@@ -213,25 +213,25 @@ namespace cnMaestro.cnDataType
         public readonly  Int64? ul_pkts_loss;
 
         [JsonProperty("ul_retransmits")]
-        public readonly  int ul_retransmits;
+        public readonly  int? ul_retransmits;
 
         [JsonProperty("ul_retransmits_pct")]
-        public readonly  int ul_retransmits_pct;
+        public readonly  int? ul_retransmits_pct;
 
         [JsonProperty("ul_rssi")]
-        public readonly  float ul_rssi;
+        public readonly  float? ul_rssi;
 
         [JsonProperty("ul_rssi_imbalance")]
-        public readonly  float ul_rssi_imbalance;
+        public readonly  float? ul_rssi_imbalance;
 
         [JsonProperty("ul_snr")]
-        public readonly  int ul_snr;
+        public readonly  int? ul_snr;
 
         [JsonProperty("ul_snr_v")]
-        public readonly  int ul_snr_v;
+        public readonly  int? ul_snr_v;
 
         [JsonProperty("ul_snr_h")]
-        public readonly  int ul_snr_h;
+        public readonly  int? ul_snr_h;
 
         [JsonProperty("ul_throughput")]
         public readonly  Int64? ul_throughput;

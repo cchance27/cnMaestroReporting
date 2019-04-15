@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using System.IO;
 using cnMaestro.cnDataType;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace CambiumSignalValidator
 {
@@ -14,13 +15,14 @@ namespace CambiumSignalValidator
         private static cnMaestro.Manager cnManager { get; set; }
         private static cnMaestro.Settings cnMaestroConf = new cnMaestro.Settings();
         private static CambiumSNMP.Settings snmpConf = new CambiumSNMP.Settings();
+        private static RadioConfig cambium;
 
         private static async Task Main(string[] args)
         {
             fetchConfiguration(); // Load our appSettings
 
             // Currently the program is only being used for testing various functions we will eventually have a real workflow.
-
+            //TODO: Filtering change to KVP pair as doing it with strings is nasty
 
             cnManager = new cnMaestro.Manager(cnMaestroConf);
 
@@ -29,40 +31,57 @@ namespace CambiumSignalValidator
             try
             {
                 //var Networks = cnApi.GetNetworksTask();
-                var Towers = cnApi.GetTowersTask("default");
-                var SpecificDevice = cnApi.GetDeviceStatsTask("0A:00:3E:B2:39:AD");
-                var SpecificDeviceAp = cnApi.GetDeviceStatsTask("0A:00:3E:70:DB:E6");
-                
-                //TODO: LEFT OFF FILTERING NOT WORKING?
-                //var OfflineDevices = cnApi.GetFilteredDevicesTask("tower=Belvedere");
-                //TODO: Filtering change to KVP pair
+                var Towers = await cnApi.GetTowersAsync("default");
 
-                //var APperformance = await cnManager.CallApiAsync<CnPerformance>("/devices/0A:00:3E:BB:0B:A2/performance?start_time=2019-03-31T18:12:11+0000&stop_time=2019-04-01T18:12:11+0000");
+                //Currently Filtered to only a tower but set to "" to grab all devices.
+                // TODO: we can add a fields= filter so we can reduce how much we're pulling from API since we don't need much
+                var AllDeviceStats = cnApi.GetMultipleDevStatsAsync("tower=Rainbow%20Beach%20Club");
+                var AllDevices = cnApi.GetMultipleDevicesAsync("tower=Rainbow%20Beach%20Club");
+                Task.WaitAll(AllDevices, AllDeviceStats);
 
-                Task.WaitAll(Towers,SpecificDeviceAp, SpecificDevice);
+                var Devices = AllDevices.Result.Where(dev => dev.status == "online").ToDictionary(dev => dev.mac);
+                var APstats = AllDeviceStats.Result.Where(dev => dev.mode == "ap" && dev.status == "online").ToDictionary(ap => ap.mac);
 
-                var utsTower = Towers.Result.SingleOrDefault(tower => tower.Name == "UTS Philipsburg");
-                
-
-                foreach (var tower in Towers.Result)
+                var snmp = new CambiumSNMP.Manager(snmpConf.Community, 2);
+                foreach (var thisSmStats in AllDeviceStats.Result.Where(dev => dev.mode == "sm" && dev.status == "online"))
                 {
-                    Console.WriteLine(tower.Name);
+                    // To get the IP We have to look it up in the devices list (stats has type but not ip, and vice versa).
+                    var thisSM = AllDevices.Result.Where(dev => dev.mac == thisSmStats.mac).Single();
+                    
+                    // We need to grab airdelay from SNMP
+                    // TODO: maybe a seperate routine just to grab airdelay not everything, since we only need that
+                    var snmpSm = snmp.GetCambiumSM(thisSM.ip);
+                    double smDistanceM = (double)RFCalc.MetersFromAirDelay(snmpSm.smAirDelayNs, snmpSm.smFrequencyHz, false);
+
+                    var myAPModel = Devices[thisSmStats.ap_mac].product;
+                    var myAPTX = APstats[thisSmStats.ap_mac].radio.tx_power;
+
+                    var smFSPL = RFCalc.FreeSpacePathLoss(smDistanceM, snmpSm.smFrequencyHz);
+
+                    // smEPL === The power transmitted from the AP and what we expect to see on the SM
+                    var smEPL = RFCalc.EstimatedPowerLevel(
+                        smDistanceM,
+                        snmpSm.smFrequencyHz,
+                        0, 
+                        Tx: cambium.Types[myAPModel].Radio(myAPTX, 16),
+                        Rx: cambium.Types[thisSM.product].Radio(thisSmStats.radio.tx_power));
+
+                    var smAPL = thisSmStats.radio.dl_rssi;
+
+                    // apEPL === The power transmitted from the SM and what we expect to see on the AP
+                    var apEPL = RFCalc.EstimatedPowerLevel(
+                        smDistanceM,
+                        snmpSm.smFrequencyHz,
+                        0,
+                        Tx: cambium.Types[thisSM.product].Radio(thisSmStats.radio.tx_power),
+                        Rx: cambium.Types[myAPModel].Radio(myAPTX, 16));
+
+                    var apAPL = thisSmStats.radio.ul_rssi;
+
+                    Console.WriteLine($"{thisSM.name} {smDistanceM.ToString("0")}m - {APstats[thisSmStats.ap_mac].name} SM EPL: {smEPL.ToString("0.##")} APL: {smAPL} | AP EPL: {apEPL.ToString("0.##")} APL: {apAPL}");
                 }
 
-                var snmp  = new CambiumSNMP.Manager(snmpConf.Community, 2);
-                var sm450 = snmp.GetCambiumSM("192.168.240.217");
-                var sm450b = snmp.GetCambiumSM("192.168.251.83");
-
-                var ap = snmp.GetCambiumAP("172.16.10.73");
-
-                var smDistance = RFCalc.MetersFromAirDelay(sm450.smAirDelayNs, sm450.smFrequencyHz);
-                double ExpectedPowerLevelSM = RFCalc.EstimatedPowerLevel(
-                    DistanceM: (double)smDistance,
-                    FrequencyHz: sm450.smFrequencyHz,
-                    MiscLoss: 2,
-                    Tx: RadioConfig.CambiumAP(TxPower: SpecificDeviceAp.Result[0].radio.tx_power),
-                    Rx: RadioConfig.CambiumSM(TxPower: SpecificDevice.Result[0].radio.tx_power, Gain: sm450.cambiumAntennaGain));
-
+                Console.WriteLine("Done");
                 Console.ReadLine();
             }
             catch (WebException e)
@@ -76,12 +95,17 @@ namespace CambiumSignalValidator
         {
             var builder = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+                .AddJsonFile("radiotypes.json", optional: false, reloadOnChange: false);
+
 
             IConfigurationRoot configuration = builder.Build();
 
             configuration.GetSection("cnMaestro").Bind(cnMaestroConf);
             configuration.GetSection("canopySnmp").Bind(snmpConf);
+            
+            cambium = configuration.Get<RadioConfig>();
+            
         }
     }
 }

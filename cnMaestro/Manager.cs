@@ -106,7 +106,7 @@ namespace cnMaestro
                 response = await _client.GetAsync(_apiURL + endPoint + $"?limit={limit}&offset={offset}");
                 _outputLog.WriteLine($"Fetching: {_apiURL}{endPoint}?limit={limit}&offset={offset}");
             } else {
-                response = await _client.GetAsync(_apiURL + endPoint + $"?filter={filter}&limit={limit}&offset={offset}");
+                response = await _client.GetAsync(_apiURL + endPoint + $"?{filter}&limit={limit}&offset={offset}");
                 _outputLog.WriteLine($"Fetching: {_apiURL}{endPoint}?{filter}&limit={limit}&offset={offset}");
             }
 

@@ -1,0 +1,12 @@
+﻿{
+  "Types": {
+    "PMP 450": {
+      "AntennaGain": 9,
+      "MaxTransmit": 22
+    },
+    "PMP 450b Mid-Gain": {
+      "AntennaGain": 16,
+      "MaxTransmit": 25
+    }
+  }
+}

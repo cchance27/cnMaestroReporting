@@ -48,13 +48,14 @@ namespace CambiumSignalValidator
                 ConcurrentBag<SubscriberRadioInfo> finalSubResults = new ConcurrentBag<SubscriberRadioInfo>();
 
                 var snmp = new CambiumSNMP.Manager(snmpConf.Community, 2);
+
+                // TODO: move this routine into a Task so it can be threaded.
                 foreach (var thisSmStats in AllDeviceStats.Result.Where(dev => dev.mode == "sm" && dev.status == "online"))
                 {
                     // To get the IP We have to look it up in the devices list (stats has type but not ip, and vice versa).
                     var thisSM = AllDevices.Result.Where(dev => dev.mac == thisSmStats.mac).Single();
                     
                     // We need to grab airdelay from SNMP
-                    // TODO: maybe a seperate routine just to grab airdelay not everything, since we only need that
                     var snmpSm = snmp.GetOids(thisSM.ip, OIDs.smAirDelayNs, OIDs.smFrequencyHz);
                     if (snmpSm == null)
                     {
@@ -116,15 +117,7 @@ namespace CambiumSignalValidator
                     Console.WriteLine($"Found Device: {thisSM.name} - SM PL Diff {Math.Abs((double)smEPL - (double)smAPL)} AP PL Diff: {Math.Abs((double)smEPL - (double)smAPL)}");
                 }
 
-                using (var ep = new ExcelPackage())
-                {
-                    var x = finalSubResults.ToList();
-
-                    var ew = ep.Workbook.Worksheets.Add("450 Devices");
-                    ew.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(x, true);
-                    ew.Cells[ew.Dimension.Address].AutoFitColumns();
-                    ep.SaveAs(new FileInfo("output.xlsx"));
-                }
+                SaveCSV(finalSubResults.ToList(), "output.xlsx");
             }
             catch (WebException e)
             {
@@ -132,6 +125,17 @@ namespace CambiumSignalValidator
             }
             Console.WriteLine("Done");
             Console.ReadLine();
+        }
+
+        public static void SaveCSV(IEnumerable<SubscriberRadioInfo> data, string OutputFile)
+        {
+            using (var ep = new ExcelPackage())
+            {
+                var ew = ep.Workbook.Worksheets.Add("450 Devices");
+                ew.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(data, true);
+                ew.Cells[ew.Dimension.Address].AutoFitColumns();
+                ep.SaveAs(new FileInfo(OutputFile));
+            }
         }
 
         private static void fetchConfiguration()

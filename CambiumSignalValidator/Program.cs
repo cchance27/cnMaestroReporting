@@ -37,8 +37,8 @@ namespace CambiumSignalValidator
 
                 //Currently Filtered to only a tower but set to "" to grab all devices.
                 // TODO: we can add a fields= filter so we can reduce how much we're pulling from API since we don't need much
-                var AllDeviceStats = cnApi.GetMultipleDevStatsAsync("tower=Rainbow%20Beach%20Club");
-                var AllDevices = cnApi.GetMultipleDevicesAsync("tower=Rainbow%20Beach%20Club");
+                var AllDeviceStats = cnApi.GetMultipleDevStatsAsync("tower=Atrium");
+                var AllDevices = cnApi.GetMultipleDevicesAsync("tower=Atrium");
                 Task.WaitAll(AllDevices, AllDeviceStats);
 
                 var Devices = AllDevices.Result.Where(dev => dev.status == "online").ToDictionary(dev => dev.mac);
@@ -94,7 +94,8 @@ namespace CambiumSignalValidator
                         Name = thisSM.name,
                         Esn = thisSM.mac,
                         APName = thisAPName,
-                        DistanceM = smDistanceM,
+                        DistanceM = (int)smDistanceM,
+                        IP = thisSM.ip,
                         Model = thisSM.product,
                         SmEPL = Math.Round(smEPL, 2),
                         SmAPL = smAPL ?? -1,
@@ -106,7 +107,6 @@ namespace CambiumSignalValidator
                         SMMaxTxPower = cambium.Types[thisSM.product].MaxTransmit
                     });
 
-                    
                     Console.WriteLine($"Found Device: {thisSM.name} - SM PL Diff {Math.Abs((double)smEPL - (double)smAPL)} AP PL Diff: {Math.Abs((double)smEPL - (double)smAPL)}");
                 }
 

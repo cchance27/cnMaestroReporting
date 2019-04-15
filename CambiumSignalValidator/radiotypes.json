@@ -7,6 +7,10 @@
     "PMP 450b Mid-Gain": {
       "AntennaGain": 16,
       "MaxTransmit": 25
+    },
+    "PMP 450b": {
+      "AntennaGain": 16,
+      "MaxTransmit": 25
     }
   }
 }

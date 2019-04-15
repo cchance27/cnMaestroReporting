@@ -6,8 +6,9 @@ namespace CambiumSignalValidator
     {
         public string Name { get; set; }
         public string Esn { get; set; }
+        public string IP { get; set; }
         public string APName { get; set; }
-        public double DistanceM { get; set; }
+        public int DistanceM { get; set; }
         public string Model { get; set; }
         public int SMTxPower { get; set; }
         public int SMMaxTxPower { get; set; }

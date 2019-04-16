@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 using SnmpSharpNet;
 
 namespace CambiumSNMP
@@ -13,6 +16,7 @@ namespace CambiumSNMP
             get => _community.ToString();
             set => _community = new OctetString(value);
         }
+        private SemaphoreSlim _taskThrottle { get; }
 
         private SnmpVersion _version { get; set; } = SnmpVersion.Ver2;
         public int Version
@@ -42,7 +46,16 @@ namespace CambiumSNMP
 
         private IAgentParameters _agentParameters { get => new AgentParameters(_version, _community); }
 
-        public Manager(string community, int snmpVersion, int retries = 0, int timeout = 2000, int port = 161)
+        /// <summary>
+        /// Base Constructor for setting up all the variables to be used for SNMP.
+        /// </summary>
+        /// <param name="community"></param>
+        /// <param name="snmpVersion"></param>
+        /// <param name="retries"></param>
+        /// <param name="timeout"></param>
+        /// <param name="port"></param>
+        /// <param name="threads"></param>
+        public Manager(string community, int snmpVersion, int retries = 0, int timeout = 2000, int port = 161, int threads = 4)
         {
             // Use external methods so that it handles the proper conversions just like independently setting.
             Community = community;
@@ -50,10 +63,16 @@ namespace CambiumSNMP
             Timeout = timeout;
             Port = port;
             Retry = Retry;
-        }
 
-        // Can create a clean Manager that just initializes default SNMP Ver2 and public community
-        public Manager() { }
+            if (_taskThrottle == null)
+                _taskThrottle = new SemaphoreSlim(threads);
+        }
+        
+        /// <summary>
+        /// Create a manager based on a CambiumSNMP.Settings
+        /// </summary>
+        /// <param name="settings"></param>
+        public Manager(Settings settings) : this(settings.Community, settings.Version, settings.Retries, settings.Port, settings.Threads) { }
 
         public IDictionary<string, string> GetOids(string ipAddress, params string[] oids)
         {
@@ -97,17 +116,30 @@ namespace CambiumSNMP
             } 
         }
 
-        public string GetOID(string ipAddress, string OID)
+        public async Task<IDictionary<string, IDictionary<string, string>>> GetMultipleDeviceOidsAsync(IEnumerable<string> ipAddresses, params string[] oids)
         {
-            try
-            {
-                return GetOids(ipAddress, OID)[OID];
+            var taskList = new List<Task>();
+            ConcurrentDictionary<string, IDictionary<string, string>> allResults = new ConcurrentDictionary<string, IDictionary<string, string>>();
+
+            foreach (var ip in ipAddresses) {
+                await _taskThrottle.WaitAsync(); // Wait for a free semaphore
+                taskList.Add(
+                    // This will run in a new thread parallel on threadpool) 
+                    Task.Run(() =>
+                        {
+                            try
+                            {
+                                allResults.TryAdd(ip, GetOids(ip, oids)); // GetOids and then add them to our dictionary to be returned at the end.
+                            }
+                            finally
+                            {
+                                _taskThrottle.Release();
+                            }
+                        }));
             }
-            catch (Exception e)
-            {
-                Console.WriteLine($"SM Fetch Error: {e.Message}");
-                return null;
-            }
+            Task.WaitAll(taskList.ToArray());
+
+            return allResults;
         }
 
         public CambiumSM GetCambiumSM(string ipAddress)

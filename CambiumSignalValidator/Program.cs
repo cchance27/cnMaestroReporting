@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using OfficeOpenXml;
 using CambiumSNMP;
+using System.Threading;
 
 namespace CambiumSignalValidator
 {
@@ -23,7 +24,6 @@ namespace CambiumSignalValidator
         private static async Task Main(string[] args)
         {
             FetchConfiguration(); // Load our appSettings
-
             // Currently the program is only being used for testing various functions we will eventually have a real workflow.
             //TODO: Filtering change to KVP pair as doing it with strings is nasty
 
@@ -44,39 +44,34 @@ namespace CambiumSignalValidator
                 var deviceTask = cnApi.GetMultipleDevicesAsync(towerFilter);
                 Task.WaitAll(deviceTask, deviceStatTask);
 
-                var devices = deviceTask.Result.Where(dev => dev.status == "online").ToDictionary(dev => dev.mac);
-                var apStats = deviceStatTask.Result.Where(dev => dev.mode == "ap" && dev.status == "online").ToDictionary(ap => ap.mac);
+                var devices = deviceTask.Result
+                    .Where(dev => dev.status == "online")
+                    .ToDictionary(dev => dev.mac); // All devices by mac key
 
-                ConcurrentBag<SubscriberRadioInfo> finalSubResults = new ConcurrentBag<SubscriberRadioInfo>();
+                var apStats = deviceStatTask.Result
+                    .Where(dev => dev.mode == "ap" && dev.status == "online")
+                    .ToDictionary(ap => ap.mac);   // All statistics by mac key 
+
+                var smIPs = deviceStatTask.Result
+                    .Where(dev => dev.mode == "sm" && dev.status == "online")
+                    .Select(dev => devices[dev.mac].ip).ToArray(); // Array of SM IPs to poll
 
                 var snmp = new CambiumSNMP.Manager(snmpConf.Community, snmpConf.Version, snmpConf.Retries);
 
-                // TODO: move this routine into a Task so it can be threaded.
-                foreach (var smStats in deviceStatTask.Result.Where(dev => dev.mode == "sm" && dev.status == "online"))
-                {
-                    // We need to grab airdelay from SNMP 
-                    IDictionary<string, string> snmpResults;
-                    try
-                    {
-                        snmpResults = snmp.GetOids(devices[smStats.mac].ip, OIDs.smAirDelayNs, OIDs.smFrequencyHz);
-                    } catch (Exception e)
-                    {
-                        Console.WriteLine($"SNMP ({devices[smStats.mac].ip}) Error: {e.Message}");
-                        continue;
-                    }
-                    
-                    var smRI = GenerateSmRadioInfo(
-                            apDevice: devices[smStats.ap_mac],
-                            apStats: apStats[smStats.ap_mac],
-                            smDevice: devices[smStats.mac],
-                            smStats: smStats,
-                            smSnmp: snmpResults);
+                // Async fetch all the SNMP From devices and return us a Dictionary<ipAddressStr, Dictionary<OIDstr, ValueStr>>
+                var snmpResults = await snmp.GetMultipleDeviceOidsAsync(smIPs, OIDs.smAirDelayNs, OIDs.smFrequencyHz);
 
-                    finalSubResults.Add(smRI);
+                // Nice select that returns all of our generated SM Info.
+                IEnumerable<SubscriberRadioInfo> finalSubResults = deviceStatTask.Result
+                    .Where(dev => dev.mode == "sm" && dev.status == "online")
+                    .Select((smStat) => GenerateSmRadioInfo(
+                        apDevice: devices[smStat.ap_mac],
+                        apStats: apStats[smStat.ap_mac],
+                        smDevice: devices[smStat.mac],
+                        smStats: smStat,
+                        smSnmp: snmpResults[devices[smStat.mac].ip]));
 
-                    Console.WriteLine($"Found Device: {smRI.Name} - SM PL Diff {Math.Abs(smRI.SmEPL - smRI.SmAPL)} AP PL Diff: {Math.Abs(smRI.SmEPL - smRI.SmEPL)}");
-                }
-
+                // Export to XLSX
                 SaveSubscriberData(finalSubResults.ToList(), "output.xlsx");
             }
             catch (WebException e)
@@ -122,6 +117,8 @@ namespace CambiumSignalValidator
                 0,
                 Tx: cambium.Types[smDevice.product].Radio(smStats.radio.tx_power),
                 Rx: cambium.Types[apDevice.product].Radio(apStats.radio.tx_power, 16));
+
+            Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
 
             return new SubscriberRadioInfo()
             {

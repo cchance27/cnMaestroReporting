@@ -13,7 +13,7 @@ using CambiumSNMP;
 
 namespace CambiumSignalValidator
 {
-    internal partial class Program
+    class Program
     {
         private static cnMaestro.Manager cnManager { get; set; }
         private static cnMaestro.Settings cnMaestroConf = new cnMaestro.Settings();
@@ -22,7 +22,7 @@ namespace CambiumSignalValidator
 
         private static async Task Main(string[] args)
         {
-            fetchConfiguration(); // Load our appSettings
+            FetchConfiguration(); // Load our appSettings
 
             // Currently the program is only being used for testing various functions we will eventually have a real workflow.
             //TODO: Filtering change to KVP pair as doing it with strings is nasty
@@ -72,16 +72,27 @@ namespace CambiumSignalValidator
                     Console.WriteLine($"Found Device: {smRI.Name} - SM PL Diff {Math.Abs(smRI.SmEPL - smRI.SmAPL)} AP PL Diff: {Math.Abs(smRI.SmEPL - smRI.SmEPL)}");
                 }
 
-                SaveCSV(finalSubResults.ToList(), "output.xlsx");
+                SaveSubscriberData(finalSubResults.ToList(), "output.xlsx");
             }
             catch (WebException e)
             {
                 Console.WriteLine(e.Message);
             }
-            Console.WriteLine("Done");
+
+            Console.WriteLine("Press any key to exit...");
             Console.ReadLine();
         }
 
+        /// <summary>
+        /// Generate our unified SM View based on the AP & SM Device and Statistics from cnMaestro, 
+        /// as well as snmp we had to pull direct, and return a clean object.
+        /// </summary>
+        /// <param name="apDevice"></param>
+        /// <param name="apStats"></param>
+        /// <param name="smDevice"></param>
+        /// <param name="smStats"></param>
+        /// <param name="smSnmp"></param>
+        /// <returns></returns>
         public static SubscriberRadioInfo GenerateSmRadioInfo(CnDevice apDevice, CnStatistics apStats, CnDevice smDevice, CnStatistics smStats, IDictionary<string, string> smSnmp)
         {
             Double.TryParse(smSnmp[OIDs.smFrequencyHz], out double smFrequencyHz);
@@ -126,18 +137,27 @@ namespace CambiumSignalValidator
             };
         }
 
-        public static void SaveCSV(IEnumerable<SubscriberRadioInfo> data, string OutputFile)
+        /// <summary>
+        /// This takes our Enumerable data and generates an Excel Worksheet to a filename.
+        /// </summary>
+        /// <param name="data"></param>
+        /// <param name="OutputFileName"></param>
+        public static void SaveSubscriberData(IEnumerable<SubscriberRadioInfo> data, string OutputFileName)
         {
             using (var ep = new ExcelPackage())
             {
                 var ew = ep.Workbook.Worksheets.Add("450 Devices");
                 ew.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(data, true);
                 ew.Cells[ew.Dimension.Address].AutoFitColumns();
-                ep.SaveAs(new FileInfo(OutputFile));
+                ep.SaveAs(new FileInfo(OutputFileName));
             }
         }
 
-        private static void fetchConfiguration()
+        /// <summary>
+        /// Opens the configuration JSON's for the access methods (cnMaestro and SNMP), 
+        /// as well as loading the various radiotypes from JSON
+        /// </summary>
+        private static void FetchConfiguration()
         {
             var builder = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())

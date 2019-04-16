@@ -9,11 +9,11 @@ namespace CambiumSignalValidator
         public string Firmware { get; set; }
         public decimal Latitude { get; set; }
         public decimal Longitude { get; set; }
-        public int Gain { get; set; }
         public string IP { get; set; }
         public string APName { get; set; }
         public int DistanceM { get; set; }
         public string Model { get; set; }
+        public int SmGain { get; set; }
         public int SmTxPower { get; set; }
         public int SmMaxTxPower { get; set; }
         public double SmEPL { get; set; }

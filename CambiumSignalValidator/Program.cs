@@ -126,7 +126,7 @@ namespace CambiumSignalValidator
                 Firmware = smDevice.software_version,
                 Latitude = smDevice.location.coordinates[1],
                 Longitude = smDevice.location.coordinates[0],
-                Gain = smGain,
+                SmGain = smGain,
                 APName = apDevice.name,
                 DistanceM = (int)smDistanceM,
                 IP = smDevice.ip,

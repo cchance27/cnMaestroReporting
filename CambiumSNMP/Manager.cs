@@ -144,6 +144,11 @@ namespace CambiumSNMP
                             {
                                 allResults.TryAdd(ip, GetOids(ip, oids)); // GetOids and then add them to our dictionary to be returned at the end.
                             }
+                            catch
+                            {
+                                // We got a failed snmp we should do something
+                                // TODO: constructor should take a output for logging that we can write to.
+                            }
                             finally
                             {
                                 _taskThrottle.Release();

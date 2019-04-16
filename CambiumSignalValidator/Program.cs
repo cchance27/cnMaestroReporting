@@ -33,8 +33,7 @@ namespace CambiumSignalValidator
             var cnApi = new cnMaestro.Api(cnManager);
             try
             {
-                //var Networks = cnApi.GetNetworksTask(); // when we want to loop through remote networks?
-                var Towers = await cnApi.GetTowersAsync("default"); // TODO: Read network from config
+                var Towers = await cnApi.GetTowersAsync(cnMaestroConf.Network); // TODO: Read network from config
 
                 //Currently Filtered to only a tower but set to "" to grab all devices.
                 // TODO: we can add a fields= filter so we can reduce how much we're pulling from API since we don't need much

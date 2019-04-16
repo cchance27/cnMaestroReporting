@@ -96,20 +96,25 @@ namespace CambiumSignalValidator
 
             double smDistanceM = RFCalc.MetersFromAirDelay(smAirDelayNs, smFrequencyHz, false);
 
+            // If we have smGain from cnMaestro let's use it if not fall back to our configured value.
+            Int32.TryParse(smStats.gain, out int smGain);
+            if (smGain == 0)
+                smGain = cambiumType.SM[smDevice.product].AntennaGain;
+
             // smEPL === The power transmitted from the AP and what we expect to see on the SM
             var smEPL = RFCalc.EstimatedPowerLevel(
                 smDistanceM,
                 smFrequencyHz,
                 0,
                 Tx: cambiumType.AP[apDevice.product].Radio(apStats.radio.tx_power),
-                Rx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power));
+                Rx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain));
 
             // apEPL === The power transmitted from the SM and what we expect to see on the AP
             var apEPL = RFCalc.EstimatedPowerLevel(
                 smDistanceM,
                 smFrequencyHz,
                 0,
-                Tx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power),
+                Tx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain),
                 Rx: cambiumType.AP[apDevice.product].Radio(apStats.radio.tx_power));
 
             Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
@@ -118,18 +123,23 @@ namespace CambiumSignalValidator
             {
                 Name = smDevice.name,
                 Esn = smDevice.mac,
+                Firmware = smDevice.software_version,
+                Latitude = smDevice.location.coordinates[1],
+                Longitude = smDevice.location.coordinates[0],
+                Gain = smGain,
                 APName = apDevice.name,
                 DistanceM = (int)smDistanceM,
                 IP = smDevice.ip,
                 Model = smDevice.product,
                 SmEPL = Math.Round(smEPL, 2),
                 SmAPL = smStats.radio.dl_rssi ?? -1,
+                SmImbalance = smStats.radio.dl_rssi_imbalance ?? 0,
                 ApModel = apDevice.product,
                 ApEPL = Math.Round(apEPL, 2),
                 ApAPL = smStats.radio.ul_rssi ?? -1,
-                APTxPower = apStats.radio.tx_power ?? cambiumType.AP[apDevice.product].MaxTransmit,
-                SMTxPower = smStats.radio.tx_power ?? cambiumType.SM[smDevice.product].MaxTransmit,
-                SMMaxTxPower = cambiumType.SM[smDevice.product].MaxTransmit
+                ApTxPower = apStats.radio.tx_power ?? cambiumType.AP[apDevice.product].MaxTransmit,
+                SmTxPower = smStats.radio.tx_power ?? cambiumType.SM[smDevice.product].MaxTransmit,
+                SmMaxTxPower = cambiumType.SM[smDevice.product].MaxTransmit, 
             };
         }
 

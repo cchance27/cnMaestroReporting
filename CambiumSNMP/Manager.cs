@@ -74,6 +74,12 @@ namespace CambiumSNMP
         /// <param name="settings"></param>
         public Manager(Settings settings) : this(settings.Community, settings.Version, settings.Retries, settings.Port, settings.Threads) { }
 
+        /// <summary>
+        /// Synchronously get snmp results from a speciifc IP Address for a param array of oids
+        /// </summary>
+        /// <param name="ipAddress"></param>
+        /// <param name="oids"></param>
+        /// <returns></returns>
         public IDictionary<string, string> GetOids(string ipAddress, params string[] oids)
         {
             IPAddress ip = null;
@@ -116,6 +122,13 @@ namespace CambiumSNMP
             } 
         }
 
+        /// <summary>
+        /// Async method for getting a param array of oids results from a list of IPs. 
+        /// We can dump as many IP's and OIDs into this as we want and it will respect 
+        /// the thread limit because of our use of the semaphore slim during startup of the manager.
+        /// </summary>
+        /// <param name="ipAddresses"></param>
+        /// <param name="oids"></param>
         public async Task<IDictionary<string, IDictionary<string, string>>> GetMultipleDeviceOidsAsync(IEnumerable<string> ipAddresses, params string[] oids)
         {
             var taskList = new List<Task>();
@@ -142,6 +155,11 @@ namespace CambiumSNMP
             return allResults;
         }
 
+        /// <summary>
+        /// Wrapper to return a complete CambiumSM (not currently used but available if needed)
+        /// </summary>
+        /// <param name="ipAddress"></param>
+        /// <returns></returns>
         public CambiumSM GetCambiumSM(string ipAddress)
         {
             try
@@ -209,6 +227,11 @@ namespace CambiumSNMP
             }
         }
 
+        /// <summary>
+        /// Wrapper to return a complete CambiumAP (not currently used but available if needed), not getting SM details etc yet.
+        /// </summary>
+        /// <param name="ipAddress"></param>
+        /// <returns></returns>
         public CambiumAP GetCambiumAP(string ipAddress)
         {
             try

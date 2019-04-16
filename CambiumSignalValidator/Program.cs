@@ -206,8 +206,8 @@ namespace CambiumSignalValidator
                 Cond2ColorFormat("SmEPL", filtered.Count(), ref filteredTable, ref FilteredWS, -85, "#FF0000", -53, "#00FF00");
                 Cond5IconFormat("SmEPL", data.Count(), ref fullTable, ref FullWS, -60, -70, -80, -90, -100);
                 Cond5IconFormat("SmEPL", filtered.Count(), ref filteredTable, ref FilteredWS, -60, -70, -80, -90, -100);
-                CommentColumn("SmEPL", "Expected Power Level the SM is receiving from the AP", ref fullTable, ref FullWS);
-                CommentColumn("SmEPL", "Expected Power Level the SM is receiving from the AP", ref filteredTable, ref FilteredWS);
+                CommentColumn("SmEPL", "Expected Power Level the SM should receive from the AP", ref fullTable, ref FullWS);
+                CommentColumn("SmEPL", "Expected Power Level the SM should receive from the AP", ref filteredTable, ref FilteredWS);
 
                 Cond2ColorFormat("ApAPL", data.Count(), ref fullTable, ref FullWS, -85, "#FF0000", -53, "#00FF00");
                 Cond2ColorFormat("ApAPL", filtered.Count(), ref filteredTable, ref FilteredWS, -85, "#FF0000", -53, "#00FF00");
@@ -215,6 +215,13 @@ namespace CambiumSignalValidator
                 CommentColumn("ApAPL", "Actual Power Level the AP is receiving from the SM", ref filteredTable, ref FilteredWS);
                 Cond5IconFormat("ApAPL", data.Count(), ref fullTable, ref FullWS, -60, -70, -80, -90, -100);
                 Cond5IconFormat("ApAPL", filtered.Count(), ref filteredTable, ref FilteredWS, -60, -70, -80, -90, -100);
+
+                Cond2ColorFormat("ApEPL", data.Count(), ref fullTable, ref FullWS, -85, "#FF0000", -53, "#00FF00");
+                Cond2ColorFormat("ApEPL", filtered.Count(), ref filteredTable, ref FilteredWS, -85, "#FF0000", -53, "#00FF00");
+                CommentColumn("ApEPL", "Expected Power Level the AP should receive from the SM", ref fullTable, ref FullWS);
+                CommentColumn("ApEPL", "Expected Power Level the AP should receive from the SM", ref filteredTable, ref FilteredWS);
+                Cond5IconFormat("ApEPL", data.Count(), ref fullTable, ref FullWS, -60, -70, -80, -90, -100);
+                Cond5IconFormat("ApEPL", filtered.Count(), ref filteredTable, ref FilteredWS, -60, -70, -80, -90, -100);
 
                 Cond2ColorFormat("ApPowerDiff", data.Count(), ref fullTable, ref FullWS, 0, "#00FF00", 15, "#FF0000");
                 Cond2ColorFormat("ApPowerDiff", filtered.Count(), ref filteredTable, ref FilteredWS, 0, "#00FF00", 15, "#FF0000");

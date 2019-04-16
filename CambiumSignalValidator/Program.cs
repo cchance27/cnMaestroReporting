@@ -35,11 +35,13 @@ namespace CambiumSignalValidator
             {
                 var Towers = await cnApi.GetTowersAsync(cnMaestroConf.Network); // TODO: Read network from config
 
-                //Currently Filtered to only a tower but set to "" to grab all devices.
-                // TODO: we can add a fields= filter so we can reduce how much we're pulling from API since we don't need much
-                // also we can do the URL Encoding for the towers automatically.
-                var deviceStatTask = cnApi.GetMultipleDevStatsAsync("tower=Atrium");
-                var deviceTask = cnApi.GetMultipleDevicesAsync("tower=Atrium");
+                // TODO: we can add a fields= filter so we can reduce how much we're pulling from API
+                var towerFilter = "";
+                if (String.IsNullOrWhiteSpace(cnMaestroConf.Tower) == false)
+                    towerFilter = "tower=" + Uri.EscapeDataString(cnMaestroConf.Tower);
+                    
+                var deviceStatTask = cnApi.GetMultipleDevStatsAsync(towerFilter);
+                var deviceTask = cnApi.GetMultipleDevicesAsync(towerFilter);
                 Task.WaitAll(deviceTask, deviceStatTask);
 
                 var devices = deviceTask.Result.Where(dev => dev.status == "online").ToDictionary(dev => dev.mac);

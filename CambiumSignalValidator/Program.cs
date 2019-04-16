@@ -38,77 +38,38 @@ namespace CambiumSignalValidator
                 //Currently Filtered to only a tower but set to "" to grab all devices.
                 // TODO: we can add a fields= filter so we can reduce how much we're pulling from API since we don't need much
                 // also we can do the URL Encoding for the towers automatically.
-                var AllDeviceStats = cnApi.GetMultipleDevStatsAsync("tower=Atrium");
-                var AllDevices = cnApi.GetMultipleDevicesAsync("tower=Atrium");
-                Task.WaitAll(AllDevices, AllDeviceStats);
+                var deviceStatTask = cnApi.GetMultipleDevStatsAsync("tower=Atrium");
+                var deviceTask = cnApi.GetMultipleDevicesAsync("tower=Atrium");
+                Task.WaitAll(deviceTask, deviceStatTask);
 
-                var Devices = AllDevices.Result.Where(dev => dev.status == "online").ToDictionary(dev => dev.mac);
-                var APstats = AllDeviceStats.Result.Where(dev => dev.mode == "ap" && dev.status == "online").ToDictionary(ap => ap.mac);
+                var devices = deviceTask.Result.Where(dev => dev.status == "online").ToDictionary(dev => dev.mac);
+                var apStats = deviceStatTask.Result.Where(dev => dev.mode == "ap" && dev.status == "online").ToDictionary(ap => ap.mac);
 
                 ConcurrentBag<SubscriberRadioInfo> finalSubResults = new ConcurrentBag<SubscriberRadioInfo>();
 
                 var snmp = new CambiumSNMP.Manager(snmpConf.Community, snmpConf.Version, snmpConf.Retries);
 
                 // TODO: move this routine into a Task so it can be threaded.
-                foreach (var thisSmStats in AllDeviceStats.Result.Where(dev => dev.mode == "sm" && dev.status == "online"))
+                foreach (var smStats in deviceStatTask.Result.Where(dev => dev.mode == "sm" && dev.status == "online"))
                 {
-                    // To get the IP We have to look it up in the devices list (stats has type but not ip, and vice versa).
-                    var thisSM = AllDevices.Result.Where(dev => dev.mac == thisSmStats.mac).Single();
-                    
-                    // We need to grab airdelay from SNMP
-                    var snmpSm = snmp.GetOids(thisSM.ip, OIDs.smAirDelayNs, OIDs.smFrequencyHz);
-                    if (snmpSm == null)
+                    // We need to grab airdelay from SNMP 
+                    var snmpResults = snmp.GetOids(devices[smStats.mac].ip, OIDs.smAirDelayNs, OIDs.smFrequencyHz);
+                    if (snmpResults == null)
                     {
-                        Console.WriteLine("SNMP Error: " + thisSM.ip);
+                        Console.WriteLine("SNMP Error: " + devices[smStats.mac].ip);
                         continue;
                     }
 
-                    Double.TryParse(snmpSm[OIDs.smFrequencyHz], out double smFrequencyHz);
-                    Int32.TryParse(snmpSm[OIDs.smAirDelayNs], out int smAirDelayNs);
+                    var smRI = GenerateSmRadioInfo(
+                            apDevice: devices[smStats.ap_mac],
+                            apStats: apStats[smStats.ap_mac],
+                            smDevice: devices[smStats.mac],
+                            smStats: smStats,
+                            smSnmp: snmpResults);
 
-                    double smDistanceM = RFCalc.MetersFromAirDelay(smAirDelayNs, smFrequencyHz, false);
+                    finalSubResults.Add(smRI);
 
-                    var thisAPModel = Devices[thisSmStats.ap_mac].product;
-                    var thisApTx = APstats[thisSmStats.ap_mac].radio.tx_power;
-                    var thisAPName = Devices[thisSmStats.ap_mac].name;
-
-                    var smFSPL = RFCalc.FreeSpacePathLoss(smDistanceM, smFrequencyHz);
-
-                    // smEPL === The power transmitted from the AP and what we expect to see on the SM
-                    var smEPL = RFCalc.EstimatedPowerLevel(
-                        smDistanceM,
-                        smFrequencyHz,
-                        0, 
-                        Tx: cambium.Types[thisAPModel].Radio(thisApTx, 16),
-                        Rx: cambium.Types[thisSM.product].Radio(thisSmStats.radio.tx_power));
-
-                    // apEPL === The power transmitted from the SM and what we expect to see on the AP
-                    var apEPL = RFCalc.EstimatedPowerLevel(
-                        smDistanceM,
-                        smFrequencyHz,
-                        0,
-                        Tx: cambium.Types[thisSM.product].Radio(thisSmStats.radio.tx_power),
-                        Rx: cambium.Types[thisAPModel].Radio(thisApTx, 16));
-
-                    finalSubResults.Add(new SubscriberRadioInfo()
-                    {
-                        Name = thisSM.name,
-                        Esn = thisSM.mac,
-                        APName = thisAPName,
-                        DistanceM = (int)smDistanceM,
-                        IP = thisSM.ip,
-                        Model = thisSM.product,
-                        SmEPL = Math.Round(smEPL, 2),
-                        SmAPL = thisSmStats.radio.dl_rssi ?? -1,
-                        ApModel = thisAPModel,
-                        ApEPL = Math.Round(apEPL, 2),
-                        ApAPL = thisSmStats.radio.ul_rssi ?? -1,
-                        APTxPower = thisApTx ?? cambium.Types[thisAPModel].MaxTransmit,
-                        SMTxPower = thisSmStats.radio.tx_power ?? cambium.Types[thisSM.product].MaxTransmit,
-                        SMMaxTxPower = cambium.Types[thisSM.product].MaxTransmit
-                    });
-
-                    Console.WriteLine($"Found Device: {thisSM.name} - SM PL Diff {Math.Abs((double)smEPL - (double)thisSmStats.radio.dl_rssi)} AP PL Diff: {Math.Abs((double)smEPL - (double)thisSmStats.radio.ul_rssi)}");
+                    Console.WriteLine($"Found Device: {smRI.Name} - SM PL Diff {Math.Abs(smRI.SmEPL - smRI.SmAPL)} AP PL Diff: {Math.Abs(smRI.SmEPL - smRI.SmEPL)}");
                 }
 
                 SaveCSV(finalSubResults.ToList(), "output.xlsx");
@@ -119,6 +80,50 @@ namespace CambiumSignalValidator
             }
             Console.WriteLine("Done");
             Console.ReadLine();
+        }
+
+        public static SubscriberRadioInfo GenerateSmRadioInfo(CnDevice apDevice, CnStatistics apStats, CnDevice smDevice, CnStatistics smStats, IDictionary<string, string> smSnmp)
+        {
+            Double.TryParse(smSnmp[OIDs.smFrequencyHz], out double smFrequencyHz);
+            Int32.TryParse(smSnmp[OIDs.smAirDelayNs], out int smAirDelayNs);
+
+            double smDistanceM = RFCalc.MetersFromAirDelay(smAirDelayNs, smFrequencyHz, false);
+
+            // smEPL === The power transmitted from the AP and what we expect to see on the SM
+            var smEPL = RFCalc.EstimatedPowerLevel(
+                smDistanceM,
+                smFrequencyHz,
+                0,
+                Tx: cambium.Types[apDevice.product].Radio(apStats.radio.tx_power, 16),
+                Rx: cambium.Types[smDevice.product].Radio(smStats.radio.tx_power));
+
+            //TODO : split SM and AP gain on the device types
+
+            // apEPL === The power transmitted from the SM and what we expect to see on the AP
+            var apEPL = RFCalc.EstimatedPowerLevel(
+                smDistanceM,
+                smFrequencyHz,
+                0,
+                Tx: cambium.Types[smDevice.product].Radio(smStats.radio.tx_power),
+                Rx: cambium.Types[apDevice.product].Radio(apStats.radio.tx_power, 16));
+
+            return new SubscriberRadioInfo()
+            {
+                Name = smDevice.name,
+                Esn = smDevice.mac,
+                APName = apDevice.name,
+                DistanceM = (int)smDistanceM,
+                IP = smDevice.ip,
+                Model = smDevice.product,
+                SmEPL = Math.Round(smEPL, 2),
+                SmAPL = smStats.radio.dl_rssi ?? -1,
+                ApModel = apDevice.product,
+                ApEPL = Math.Round(apEPL, 2),
+                ApAPL = smStats.radio.ul_rssi ?? -1,
+                APTxPower = apStats.radio.tx_power ?? cambium.Types[apDevice.product].MaxTransmit,
+                SMTxPower = smStats.radio.tx_power ?? cambium.Types[smDevice.product].MaxTransmit,
+                SMMaxTxPower = cambium.Types[smDevice.product].MaxTransmit
+            };
         }
 
         public static void SaveCSV(IEnumerable<SubscriberRadioInfo> data, string OutputFile)

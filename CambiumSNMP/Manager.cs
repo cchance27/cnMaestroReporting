@@ -70,7 +70,7 @@ namespace CambiumSNMP
             using (UdpTarget target = new UdpTarget(ip, Port, Timeout, Retry))
             {
                 SnmpPacket result = target.Request(pdu, _agentParameters);
-
+                
                 IDictionary<string, string> outputResults = new Dictionary<string, string>();
                 if (result != null)
                 {

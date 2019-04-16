@@ -55,13 +55,16 @@ namespace CambiumSignalValidator
                 foreach (var smStats in deviceStatTask.Result.Where(dev => dev.mode == "sm" && dev.status == "online"))
                 {
                     // We need to grab airdelay from SNMP 
-                    var snmpResults = snmp.GetOids(devices[smStats.mac].ip, OIDs.smAirDelayNs, OIDs.smFrequencyHz);
-                    if (snmpResults == null)
+                    IDictionary<string, string> snmpResults;
+                    try
                     {
-                        Console.WriteLine("SNMP Error: " + devices[smStats.mac].ip);
+                        snmpResults = snmp.GetOids(devices[smStats.mac].ip, OIDs.smAirDelayNs, OIDs.smFrequencyHz);
+                    } catch (Exception e)
+                    {
+                        Console.WriteLine($"SNMP ({devices[smStats.mac].ip}) Error: {e.Message}");
                         continue;
                     }
-
+                    
                     var smRI = GenerateSmRadioInfo(
                             apDevice: devices[smStats.ap_mac],
                             apStats: apStats[smStats.ap_mac],

@@ -59,7 +59,7 @@ namespace CambiumSignalValidator
 
                 // Nice select that returns all of our generated SM Info.
                 IEnumerable<SubscriberRadioInfo> finalSubResults = deviceStatTask.Result
-                    .Where(dev => dev.mode == "sm" && dev.status == "online")
+                    .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResults[devices[dev.mac].ip] != null)
                     .Select((smStat) => GenerateSmRadioInfo(
                         apDevice: devices[smStat.ap_mac],
                         apStats: apStats[smStat.ap_mac],

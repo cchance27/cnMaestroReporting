@@ -170,14 +170,14 @@ namespace CambiumSignalValidator
                    (dev.SmPowerDiff > outputConf.BadPowerDiff || dev.ApPowerDiff > outputConf.BadPowerDiff) &&
                    (dev.SmAPL < outputConf.LowSignal || dev.ApAPL < outputConf.LowSignal));
 
-                var FilteredWS = ep.Workbook.Worksheets.Add("SM Signal Issues");
+                var FilteredWS = ep.Workbook.Worksheets.Add($"SM Signal Issue");
                 FilteredWS.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(filtered, true);
 
                 ExcelRange filteredRange = FilteredWS.Cells[FilteredWS.Dimension.Address];
                 ExcelTable filteredTable = FilteredWS.Tables.Add(filteredRange, "SMSignalIssues");
                 filteredRange.Sort(filteredTable.Columns["APName"].Position);
 
-                var FullWS = ep.Workbook.Worksheets.Add("450 Subscribers");
+                var FullWS = ep.Workbook.Worksheets.Add("All Subscribers");
                 FullWS.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(data, true);
                 ExcelRange fullRange = FullWS.Cells[FullWS.Dimension.Address];
                 ExcelTable fullTable = FullWS.Tables.Add(fullRange, "Subscribers");

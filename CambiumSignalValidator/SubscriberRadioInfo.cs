@@ -6,6 +6,7 @@ namespace CambiumSignalValidator
     {
         public string Name { get; set; }
         public string Esn { get; set; }
+        public string Location { get; set; }
         public string APName { get; set; }
         public string ApModel { get; set; }
         public string Firmware { get; set; }

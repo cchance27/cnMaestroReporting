@@ -131,6 +131,7 @@ namespace CambiumSignalValidator
             {
                 Name = smDevice.name,
                 Esn = smDevice.mac,
+                Location = apDevice.tower,
                 Firmware = smDevice.software_version,
                 Latitude = smDevice.location.coordinates[1],
                 Longitude = smDevice.location.coordinates[0],

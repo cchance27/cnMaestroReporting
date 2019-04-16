@@ -6,11 +6,12 @@ namespace CambiumSignalValidator
     {
         public string Name { get; set; }
         public string Esn { get; set; }
+        public string APName { get; set; }
+        public string ApModel { get; set; }
         public string Firmware { get; set; }
         public decimal Latitude { get; set; }
         public decimal Longitude { get; set; }
         public string IP { get; set; }
-        public string APName { get; set; }
         public int DistanceM { get; set; }
         public string Model { get; set; }
         public int SmGain { get; set; }
@@ -18,9 +19,8 @@ namespace CambiumSignalValidator
         public int SmMaxTxPower { get; set; }
         public double SmEPL { get; set; }
         public double SmAPL { get; set; }
-        public double SmImbalance { get; set; }
         public double SmPowerDiff { get => Math.Round(Math.Abs(SmEPL - SmAPL), 2); }
-        public string ApModel { get; set; }
+        public double SmImbalance { get; set; }
         public int ApTxPower { get; set; }
         public double ApEPL { get; set; }
         public double ApAPL { get; set; }

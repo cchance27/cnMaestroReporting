@@ -8,6 +8,9 @@ using System.Linq;
 using System.Collections.Generic;
 using OfficeOpenXml;
 using CambiumSNMP;
+using OfficeOpenXml.Table;
+using System.Drawing;
+using OfficeOpenXml.ConditionalFormatting;
 
 namespace CambiumSignalValidator
 {
@@ -59,7 +62,7 @@ namespace CambiumSignalValidator
 
                 // Nice select that returns all of our generated SM Info.
                 IEnumerable<SubscriberRadioInfo> finalSubResults = deviceStatTask.Result
-                    .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResults[devices[dev.mac].ip] != null)
+                    .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResults.Keys.Contains(devices[dev.mac].ip))
                     .Select((smStat) => GenerateSmRadioInfo(
                         apDevice: devices[smStat.ap_mac],
                         apStats: apStats[smStat.ap_mac],
@@ -152,11 +155,109 @@ namespace CambiumSignalValidator
         {
             using (var ep = new ExcelPackage())
             {
-                var ew = ep.Workbook.Worksheets.Add("450 Devices");
+                var ew = ep.Workbook.Worksheets.Add("450 Subscribers");
                 ew.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(data, true);
+                ExcelRange rng = ew.Cells[ew.Dimension.Address];
+                ExcelTable tbl = ew.Tables.Add(rng, "Subscribers");
+
+                var filtered = data.Where(dev =>
+                    (dev.SmPowerDiff > 10 || dev.ApPowerDiff > 10) &&
+                    (dev.SmAPL < -70 || dev.ApAPL < -70));
+
+                var ew2 = ep.Workbook.Worksheets.Add("SM Signal Mismatch");
+                ew2.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(filtered, true);
+
+                ExcelRange rng2 = ew2.Cells[ew2.Dimension.Address];
+                ExcelTable tbl2 = ew2.Tables.Add(rng2, "SMSignalMismatch");
+
+                RenameColumn("ApTxPower", "AP TX", ref tbl);
+                RenameColumn("ApTxPower", "AP TX", ref tbl2);
+                RenameColumn("SmTxPower", "SM TX", ref tbl);
+                RenameColumn("SmTxPower", "SM TX", ref tbl2);
+                RenameColumn("SmMaxTxPower", "SMTxMax", ref tbl);
+                RenameColumn("SmMaxTxPower", "SMTxMax", ref tbl2);
+
+                CommentColumn("SmImbalance", "Difference between Vertical and Horizontal power levels on SM", ref tbl, ref ew);
+                CommentColumn("SmImbalance", "Difference between Vertical and Horizontal power levels on SM", ref tbl2, ref ew2);
+                RenameColumn("SmImbalance", "SMI", ref tbl);
+                RenameColumn("SmImbalance", "SMI", ref tbl2);
+
+                Cond2ColorFormat("SmAPL", data.Count(), ref tbl, ref ew, -85, "#FF0000", -53, "#00FF00");
+                Cond2ColorFormat("SmAPL", filtered.Count(), ref tbl2, ref ew2, -100, "#FF0000", -53, "#00FF00");
+                Cond5IconFormat("SmAPL", data.Count(), ref tbl, ref ew, -60, -70, -80, -90, -100);
+                Cond5IconFormat("SmAPL", filtered.Count(), ref tbl2, ref ew2, -60, -70, -80, -90, -100);
+                CommentColumn("SmAPL", "Actual Power Level the SM is receiving from the AP", ref tbl, ref ew);
+                CommentColumn("SmAPL", "Actual Power Level the SM is receiving from the AP", ref tbl2, ref ew2);
+                
+                Cond2ColorFormat("ApAPL", data.Count(), ref tbl, ref ew, -85, "#FF0000", -53, "#00FF00");
+                Cond2ColorFormat("ApAPL", filtered.Count(), ref tbl2, ref ew2, -100, "#FF0000", -53, "#00FF00");
+                CommentColumn("ApAPL", "Actual Power Level the AP is receiving from the SM", ref tbl, ref ew);
+                CommentColumn("ApAPL", "Actual Power Level the AP is receiving from the SM", ref tbl2, ref ew2);
+                Cond5IconFormat("ApAPL", data.Count(), ref tbl, ref ew, -60, -70, -80, -90, -100);
+                Cond5IconFormat("ApAPL", filtered.Count(), ref tbl2, ref ew2, -60, -70, -80, -90, -100);
+
+                Cond2ColorFormat("ApPowerDiff", data.Count(), ref tbl, ref ew, 0, "#00FF00", 15, "#FF0000");
+                Cond2ColorFormat("ApPowerDiff", filtered.Count(), ref tbl2, ref ew2, 0, "#00FF00", 15, "#FF0000");
+                CommentColumn("ApPowerDiff", "AP side power difference between Expected and Actual", ref tbl, ref ew);
+                CommentColumn("ApPowerDiff", "AP side power difference between Expected and Actual", ref tbl2, ref ew2);
+                RenameColumn("ApPowerDiff", "APPD", ref tbl);
+                RenameColumn("ApPowerDiff", "APPD", ref tbl2);
+
+                Cond2ColorFormat("SmPowerDiff", data.Count(), ref tbl, ref ew, 0, "#00FF00", 15, "#FF0000");
+                Cond2ColorFormat("SmPowerDiff", filtered.Count(), ref tbl2, ref ew2, 0, "#00FF00", 15, "#FF0000");
+                CommentColumn("SmPowerDiff", "SM side power difference between Expected and Actual", ref tbl, ref ew);
+                CommentColumn("SmPowerDiff", "SM side power difference between Expected and Actual", ref tbl2, ref ew2);
+                RenameColumn("SmPowerDiff", "SMPD", ref tbl);
+                RenameColumn("SmPowerDiff", "SMPD", ref tbl2);
+
+                tbl.ShowFilter = false;
+                tbl2.ShowFilter = false;
+
                 ew.Cells[ew.Dimension.Address].AutoFitColumns();
+                ew2.Cells[ew2.Dimension.Address].AutoFitColumns();
                 ep.SaveAs(new FileInfo(OutputFileName));
             }
+        }
+
+        public static void CommentColumn(string ColumnName, string Comment, ref ExcelTable table, ref ExcelWorksheet ew)
+        {
+            ew.Cells[1, table.Columns[ColumnName].Position + 1].AddComment(Comment, "CSV");
+        }
+
+        public static void RenameColumn(string ColumnName, string NewName, ref ExcelTable table)
+        {
+            table.Columns[ColumnName].Name = NewName;
+        }
+
+        public static void Cond2ColorFormat(string ColumnName, int dataCount, ref ExcelTable tbl, ref ExcelWorksheet ew, int LowValue, string LowColor, int HighValue, string HighColor)
+        {
+            ExcelAddress e = new ExcelAddress(2, tbl.Columns[ColumnName].Position + 1, dataCount + 1, tbl.Columns[ColumnName].Position + 1);
+            var cf = ew.ConditionalFormatting.AddTwoColorScale(e);
+            cf.LowValue.Type = eExcelConditionalFormattingValueObjectType.Num;
+            cf.LowValue.Value = LowValue;
+            cf.LowValue.Color = ColorTranslator.FromHtml(LowColor);
+            cf.HighValue.Type = eExcelConditionalFormattingValueObjectType.Num;
+            cf.HighValue.Value = HighValue;
+            cf.HighValue.Color = ColorTranslator.FromHtml(HighColor);
+
+            cf.Style.Font.Bold = true;
+        }
+
+        public static void Cond5IconFormat(string ColumnName, int dataCount, ref ExcelTable tbl, ref ExcelWorksheet ew, int val1, int val2, int val3, int val4, int val5, bool showVal = true)
+        {
+            ExcelAddress e = new ExcelAddress(2, tbl.Columns[ColumnName].Position + 1, dataCount + 1, tbl.Columns[ColumnName].Position + 1);
+            var cf2 = ew.ConditionalFormatting.AddFiveIconSet(e, OfficeOpenXml.ConditionalFormatting.eExcelconditionalFormatting5IconsSetType.Rating);
+            cf2.Icon5.Type = eExcelConditionalFormattingValueObjectType.Num;
+            cf2.Icon5.Value = val1;
+            cf2.Icon4.Type = eExcelConditionalFormattingValueObjectType.Num;
+            cf2.Icon4.Value = val2;
+            cf2.Icon3.Type = eExcelConditionalFormattingValueObjectType.Num;
+            cf2.Icon3.Value = val3;
+            cf2.Icon2.Type = eExcelConditionalFormattingValueObjectType.Num;
+            cf2.Icon2.Value = val4;
+            cf2.Icon1.Type = eExcelConditionalFormattingValueObjectType.Num;
+            cf2.Icon1.Value = val5;
+            cf2.ShowValue = showVal;
         }
 
         /// <summary>

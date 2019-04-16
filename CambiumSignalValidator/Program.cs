@@ -104,12 +104,17 @@ namespace CambiumSignalValidator
             if (smGain == 0)
                 smGain = cambiumType.SM[smDevice.product].AntennaGain;
 
+            // Odd irregularity where cnMaestro sends a -30 let's assume max Tx since it's obviously transmitting as we have a SM to calculate on the panel.
+            var apTx = apStats.radio.tx_power ?? cambiumType.AP[apDevice.product].MaxTransmit;
+            if (apTx < 0)
+                apTx = cambiumType.AP[apDevice.product].MaxTransmit;
+
             // smEPL === The power transmitted from the AP and what we expect to see on the SM
             var smEPL = RFCalc.EstimatedPowerLevel(
                 smDistanceM,
                 smFrequencyHz,
                 0,
-                Tx: cambiumType.AP[apDevice.product].Radio(apStats.radio.tx_power),
+                Tx: cambiumType.AP[apDevice.product].Radio(apTx),
                 Rx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain));
 
             // apEPL === The power transmitted from the SM and what we expect to see on the AP
@@ -118,7 +123,7 @@ namespace CambiumSignalValidator
                 smFrequencyHz,
                 0,
                 Tx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain),
-                Rx: cambiumType.AP[apDevice.product].Radio(apStats.radio.tx_power));
+                Rx: cambiumType.AP[apDevice.product].Radio(apTx));
 
             Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
 
@@ -140,7 +145,7 @@ namespace CambiumSignalValidator
                 ApModel = apDevice.product,
                 ApEPL = Math.Round(apEPL, 2),
                 ApAPL = smStats.radio.ul_rssi ?? -1,
-                ApTxPower = apStats.radio.tx_power ?? cambiumType.AP[apDevice.product].MaxTransmit,
+                ApTxPower = apTx,
                 SmTxPower = smStats.radio.tx_power ?? cambiumType.SM[smDevice.product].MaxTransmit,
                 SmMaxTxPower = cambiumType.SM[smDevice.product].MaxTransmit, 
             };

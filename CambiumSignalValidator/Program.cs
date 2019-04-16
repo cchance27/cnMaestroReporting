@@ -1,16 +1,13 @@
 ﻿using CommonCalculations;
 using System;
-using System.Net;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using System.IO;
 using cnMaestro.cnDataType;
 using System.Linq;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using OfficeOpenXml;
 using CambiumSNMP;
-using System.Threading;
 
 namespace CambiumSignalValidator
 {

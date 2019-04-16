@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace cnMaestro
+﻿namespace cnMaestro
 {
     public class Settings
     {

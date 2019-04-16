@@ -5,7 +5,8 @@ namespace CambiumSignalValidator
 {
     public class RadioConfig
     {
-        public Dictionary<string, RadioSettings> Types { get; set; }
+        public Dictionary<string, RadioSettings> AP { get; set; }
+        public Dictionary<string, RadioSettings> SM { get; set; }
     }
 
     public class RadioSettings

@@ -19,7 +19,7 @@ namespace CambiumSignalValidator
         private static cnMaestro.Manager cnManager { get; set; }
         private static cnMaestro.Settings cnMaestroConf = new cnMaestro.Settings();
         private static CambiumSNMP.Settings snmpConf = new CambiumSNMP.Settings();
-        private static RadioConfig cambium;
+        private static RadioConfig cambiumType;
 
         private static async Task Main(string[] args)
         {
@@ -28,9 +28,10 @@ namespace CambiumSignalValidator
             //TODO: Filtering change to KVP pair as doing it with strings is nasty
 
             cnManager = new cnMaestro.Manager(cnMaestroConf);
-
             await cnManager.ConnectAsync();
             var cnApi = new cnMaestro.Api(cnManager);
+            var snmp = new CambiumSNMP.Manager(snmpConf.Community, snmpConf.Version, snmpConf.Retries);
+
             try
             {
                 var Towers = await cnApi.GetTowersAsync(cnMaestroConf.Network); // TODO: Read network from config
@@ -56,8 +57,6 @@ namespace CambiumSignalValidator
                     .Where(dev => dev.mode == "sm" && dev.status == "online")
                     .Select(dev => devices[dev.mac].ip).ToArray(); // Array of SM IPs to poll
 
-                var snmp = new CambiumSNMP.Manager(snmpConf.Community, snmpConf.Version, snmpConf.Retries);
-
                 // Async fetch all the SNMP From devices and return us a Dictionary<ipAddressStr, Dictionary<OIDstr, ValueStr>>
                 var snmpResults = await snmp.GetMultipleDeviceOidsAsync(smIPs, OIDs.smAirDelayNs, OIDs.smFrequencyHz);
 
@@ -74,7 +73,7 @@ namespace CambiumSignalValidator
                 // Export to XLSX
                 SaveSubscriberData(finalSubResults.ToList(), "output.xlsx");
             }
-            catch (WebException e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
             }
@@ -105,8 +104,8 @@ namespace CambiumSignalValidator
                 smDistanceM,
                 smFrequencyHz,
                 0,
-                Tx: cambium.Types[apDevice.product].Radio(apStats.radio.tx_power, 16),
-                Rx: cambium.Types[smDevice.product].Radio(smStats.radio.tx_power));
+                Tx: cambiumType.AP[apDevice.product].Radio(apStats.radio.tx_power),
+                Rx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power));
 
             //TODO : split SM and AP gain on the device types
 
@@ -115,8 +114,8 @@ namespace CambiumSignalValidator
                 smDistanceM,
                 smFrequencyHz,
                 0,
-                Tx: cambium.Types[smDevice.product].Radio(smStats.radio.tx_power),
-                Rx: cambium.Types[apDevice.product].Radio(apStats.radio.tx_power, 16));
+                Tx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power),
+                Rx: cambiumType.AP[apDevice.product].Radio(apStats.radio.tx_power));
 
             Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
 
@@ -133,9 +132,9 @@ namespace CambiumSignalValidator
                 ApModel = apDevice.product,
                 ApEPL = Math.Round(apEPL, 2),
                 ApAPL = smStats.radio.ul_rssi ?? -1,
-                APTxPower = apStats.radio.tx_power ?? cambium.Types[apDevice.product].MaxTransmit,
-                SMTxPower = smStats.radio.tx_power ?? cambium.Types[smDevice.product].MaxTransmit,
-                SMMaxTxPower = cambium.Types[smDevice.product].MaxTransmit
+                APTxPower = apStats.radio.tx_power ?? cambiumType.AP[apDevice.product].MaxTransmit,
+                SMTxPower = smStats.radio.tx_power ?? cambiumType.SM[smDevice.product].MaxTransmit,
+                SMMaxTxPower = cambiumType.SM[smDevice.product].MaxTransmit
             };
         }
 
@@ -166,13 +165,12 @@ namespace CambiumSignalValidator
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
                 .AddJsonFile("radiotypes.json", optional: false, reloadOnChange: false);
 
-
             IConfigurationRoot configuration = builder.Build();
 
             configuration.GetSection("cnMaestro").Bind(cnMaestroConf);
             configuration.GetSection("canopySnmp").Bind(snmpConf);
             
-            cambium = configuration.Get<RadioConfig>();
+            cambiumType = configuration.Get<RadioConfig>();
             
         }
     }

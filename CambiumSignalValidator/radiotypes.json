@@ -1,5 +1,19 @@
 ﻿{
-  "Types": {
+  "AP": {
+    "PMP 450": {
+      "AntennaGain": 16,
+      "MaxTransmit": 22
+    },
+    "PMP 450i": {
+      "AntennaGain": 17,
+      "MaxTransmit": 27
+    },
+    "PMP 450m": {
+      "AntennaGain": 14,
+      "MaxTransmit": 24
+    }
+  },
+  "SM": {
     "PMP 450": {
       "AntennaGain": 9,
       "MaxTransmit": 22
@@ -11,14 +25,6 @@
     "PMP 450b": {
       "AntennaGain": 16,
       "MaxTransmit": 25
-    },
-    "PMP 450i": {
-      "AntennaGain": 17,
-      "MaxTransmit": 27
-    },
-    "PMP 450m": {
-      "AntennaGain": 14,
-      "MaxTransmit": 24
     }
   }
 }

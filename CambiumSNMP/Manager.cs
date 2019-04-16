@@ -31,7 +31,7 @@ namespace CambiumSNMP
                 }
                 else
                 {
-                    _version = SnmpVersion.Ver3;
+                    throw new NotSupportedException("Only SNMP Version 1 and Version 2 are supported currently.");
                 }
             }
         }

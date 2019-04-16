@@ -19,6 +19,7 @@ namespace CambiumSignalValidator
         private static cnMaestro.Manager cnManager { get; set; }
         private static cnMaestro.Settings cnMaestroConf = new cnMaestro.Settings();
         private static CambiumSNMP.Settings snmpConf = new CambiumSNMP.Settings();
+        private static Settings outputConf = new Settings();
         private static RadioConfig cambiumType;
 
         private static async Task Main(string[] args)
@@ -71,7 +72,7 @@ namespace CambiumSignalValidator
                         smSnmp: snmpResults[devices[smStat.mac].ip]));
 
                 // Export to XLSX
-                SaveSubscriberData(finalSubResults.ToList(), "output.xlsx");
+                SaveSubscriberData(finalSubResults.ToList());
             }
             catch (Exception e)
             {
@@ -152,76 +153,89 @@ namespace CambiumSignalValidator
             };
         }
 
+        //TODO: move the 
         /// <summary>
         /// This takes our Enumerable data and generates an Excel Worksheet to a filename.
         /// </summary>
         /// <param name="data"></param>
         /// <param name="OutputFileName"></param>
-        public static void SaveSubscriberData(IEnumerable<SubscriberRadioInfo> data, string OutputFileName)
+        public static void SaveSubscriberData(IEnumerable<SubscriberRadioInfo> data)
         {
+            if (String.IsNullOrWhiteSpace(outputConf.FileName))
+                outputConf.FileName = $"Subscriber Report {DateTime.Now.ToString("yyyy-MM-dd")}.xlsx";
+
             using (var ep = new ExcelPackage())
             {
-                var ew = ep.Workbook.Worksheets.Add("450 Subscribers");
-                ew.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(data, true);
-                ExcelRange rng = ew.Cells[ew.Dimension.Address];
-                ExcelTable tbl = ew.Tables.Add(rng, "Subscribers");
-
                 var filtered = data.Where(dev =>
-                    (dev.SmPowerDiff > 10 || dev.ApPowerDiff > 10) &&
-                    (dev.SmAPL < -70 || dev.ApAPL < -70));
+                   (dev.SmPowerDiff > outputConf.BadPowerDiff || dev.ApPowerDiff > outputConf.BadPowerDiff) &&
+                   (dev.SmAPL < outputConf.LowSignal || dev.ApAPL < outputConf.LowSignal));
 
-                var ew2 = ep.Workbook.Worksheets.Add("SM Signal Mismatch");
-                ew2.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(filtered, true);
+                var FilteredWS = ep.Workbook.Worksheets.Add("SM Signal Issues");
+                FilteredWS.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(filtered, true);
 
-                ExcelRange rng2 = ew2.Cells[ew2.Dimension.Address];
-                ExcelTable tbl2 = ew2.Tables.Add(rng2, "SMSignalMismatch");
+                ExcelRange filteredRange = FilteredWS.Cells[FilteredWS.Dimension.Address];
+                ExcelTable filteredTable = FilteredWS.Tables.Add(filteredRange, "SMSignalIssues");
+                filteredRange.Sort(filteredTable.Columns["APName"].Position);
 
-                RenameColumn("ApTxPower", "AP TX", ref tbl);
-                RenameColumn("ApTxPower", "AP TX", ref tbl2);
-                RenameColumn("SmTxPower", "SM TX", ref tbl);
-                RenameColumn("SmTxPower", "SM TX", ref tbl2);
-                RenameColumn("SmMaxTxPower", "SMTxMax", ref tbl);
-                RenameColumn("SmMaxTxPower", "SMTxMax", ref tbl2);
+                var FullWS = ep.Workbook.Worksheets.Add("450 Subscribers");
+                FullWS.Cells["A1"].LoadFromCollection<SubscriberRadioInfo>(data, true);
+                ExcelRange fullRange = FullWS.Cells[FullWS.Dimension.Address];
+                ExcelTable fullTable = FullWS.Tables.Add(fullRange, "Subscribers");
+                fullRange.Sort(fullTable.Columns["APName"].Position);
 
-                CommentColumn("SmImbalance", "Difference between Vertical and Horizontal power levels on SM", ref tbl, ref ew);
-                CommentColumn("SmImbalance", "Difference between Vertical and Horizontal power levels on SM", ref tbl2, ref ew2);
-                RenameColumn("SmImbalance", "SMI", ref tbl);
-                RenameColumn("SmImbalance", "SMI", ref tbl2);
+                RenameColumn("ApTxPower", "AP TX", ref fullTable);
+                RenameColumn("ApTxPower", "AP TX", ref filteredTable);
+                RenameColumn("SmTxPower", "SM TX", ref fullTable);
+                RenameColumn("SmTxPower", "SM TX", ref filteredTable);
+                RenameColumn("SmMaxTxPower", "SMTxMax", ref fullTable);
+                RenameColumn("SmMaxTxPower", "SMTxMax", ref filteredTable);
 
-                Cond2ColorFormat("SmAPL", data.Count(), ref tbl, ref ew, -85, "#FF0000", -53, "#00FF00");
-                Cond2ColorFormat("SmAPL", filtered.Count(), ref tbl2, ref ew2, -100, "#FF0000", -53, "#00FF00");
-                Cond5IconFormat("SmAPL", data.Count(), ref tbl, ref ew, -60, -70, -80, -90, -100);
-                Cond5IconFormat("SmAPL", filtered.Count(), ref tbl2, ref ew2, -60, -70, -80, -90, -100);
-                CommentColumn("SmAPL", "Actual Power Level the SM is receiving from the AP", ref tbl, ref ew);
-                CommentColumn("SmAPL", "Actual Power Level the SM is receiving from the AP", ref tbl2, ref ew2);
-                
-                Cond2ColorFormat("ApAPL", data.Count(), ref tbl, ref ew, -85, "#FF0000", -53, "#00FF00");
-                Cond2ColorFormat("ApAPL", filtered.Count(), ref tbl2, ref ew2, -100, "#FF0000", -53, "#00FF00");
-                CommentColumn("ApAPL", "Actual Power Level the AP is receiving from the SM", ref tbl, ref ew);
-                CommentColumn("ApAPL", "Actual Power Level the AP is receiving from the SM", ref tbl2, ref ew2);
-                Cond5IconFormat("ApAPL", data.Count(), ref tbl, ref ew, -60, -70, -80, -90, -100);
-                Cond5IconFormat("ApAPL", filtered.Count(), ref tbl2, ref ew2, -60, -70, -80, -90, -100);
+                CommentColumn("SmImbalance", "Difference between Vertical and Horizontal power levels on SM", ref fullTable, ref FullWS);
+                CommentColumn("SmImbalance", "Difference between Vertical and Horizontal power levels on SM", ref filteredTable, ref FilteredWS);
+                RenameColumn("SmImbalance", "SMI", ref fullTable);
+                RenameColumn("SmImbalance", "SMI", ref filteredTable);
 
-                Cond2ColorFormat("ApPowerDiff", data.Count(), ref tbl, ref ew, 0, "#00FF00", 15, "#FF0000");
-                Cond2ColorFormat("ApPowerDiff", filtered.Count(), ref tbl2, ref ew2, 0, "#00FF00", 15, "#FF0000");
-                CommentColumn("ApPowerDiff", "AP side power difference between Expected and Actual", ref tbl, ref ew);
-                CommentColumn("ApPowerDiff", "AP side power difference between Expected and Actual", ref tbl2, ref ew2);
-                RenameColumn("ApPowerDiff", "APPD", ref tbl);
-                RenameColumn("ApPowerDiff", "APPD", ref tbl2);
+                Cond2ColorFormat("SmAPL", data.Count(), ref fullTable, ref FullWS, -85, "#FF0000", -53, "#00FF00");
+                Cond2ColorFormat("SmAPL", filtered.Count(), ref filteredTable, ref FilteredWS, -85, "#FF0000", -53, "#00FF00");
+                Cond5IconFormat("SmAPL", data.Count(), ref fullTable, ref FullWS, -60, -70, -80, -90, -100);
+                Cond5IconFormat("SmAPL", filtered.Count(), ref filteredTable, ref FilteredWS, -60, -70, -80, -90, -100);
+                CommentColumn("SmAPL", "Actual Power Level the SM is receiving from the AP", ref fullTable, ref FullWS);
+                CommentColumn("SmAPL", "Actual Power Level the SM is receiving from the AP", ref filteredTable, ref FilteredWS);
 
-                Cond2ColorFormat("SmPowerDiff", data.Count(), ref tbl, ref ew, 0, "#00FF00", 15, "#FF0000");
-                Cond2ColorFormat("SmPowerDiff", filtered.Count(), ref tbl2, ref ew2, 0, "#00FF00", 15, "#FF0000");
-                CommentColumn("SmPowerDiff", "SM side power difference between Expected and Actual", ref tbl, ref ew);
-                CommentColumn("SmPowerDiff", "SM side power difference between Expected and Actual", ref tbl2, ref ew2);
-                RenameColumn("SmPowerDiff", "SMPD", ref tbl);
-                RenameColumn("SmPowerDiff", "SMPD", ref tbl2);
+                Cond2ColorFormat("SmEPL", data.Count(), ref fullTable, ref FullWS, -85, "#FF0000", -53, "#00FF00");
+                Cond2ColorFormat("SmEPL", filtered.Count(), ref filteredTable, ref FilteredWS, -85, "#FF0000", -53, "#00FF00");
+                Cond5IconFormat("SmEPL", data.Count(), ref fullTable, ref FullWS, -60, -70, -80, -90, -100);
+                Cond5IconFormat("SmEPL", filtered.Count(), ref filteredTable, ref FilteredWS, -60, -70, -80, -90, -100);
+                CommentColumn("SmEPL", "Expected Power Level the SM is receiving from the AP", ref fullTable, ref FullWS);
+                CommentColumn("SmEPL", "Expected Power Level the SM is receiving from the AP", ref filteredTable, ref FilteredWS);
 
-                tbl.ShowFilter = false;
-                tbl2.ShowFilter = false;
+                Cond2ColorFormat("ApAPL", data.Count(), ref fullTable, ref FullWS, -85, "#FF0000", -53, "#00FF00");
+                Cond2ColorFormat("ApAPL", filtered.Count(), ref filteredTable, ref FilteredWS, -85, "#FF0000", -53, "#00FF00");
+                CommentColumn("ApAPL", "Actual Power Level the AP is receiving from the SM", ref fullTable, ref FullWS);
+                CommentColumn("ApAPL", "Actual Power Level the AP is receiving from the SM", ref filteredTable, ref FilteredWS);
+                Cond5IconFormat("ApAPL", data.Count(), ref fullTable, ref FullWS, -60, -70, -80, -90, -100);
+                Cond5IconFormat("ApAPL", filtered.Count(), ref filteredTable, ref FilteredWS, -60, -70, -80, -90, -100);
 
-                ew.Cells[ew.Dimension.Address].AutoFitColumns();
-                ew2.Cells[ew2.Dimension.Address].AutoFitColumns();
-                ep.SaveAs(new FileInfo(OutputFileName));
+                Cond2ColorFormat("ApPowerDiff", data.Count(), ref fullTable, ref FullWS, 0, "#00FF00", 15, "#FF0000");
+                Cond2ColorFormat("ApPowerDiff", filtered.Count(), ref filteredTable, ref FilteredWS, 0, "#00FF00", 15, "#FF0000");
+                CommentColumn("ApPowerDiff", "AP side power difference between Expected and Actual", ref fullTable, ref FullWS);
+                CommentColumn("ApPowerDiff", "AP side power difference between Expected and Actual", ref filteredTable, ref FilteredWS);
+                RenameColumn("ApPowerDiff", "APPD", ref fullTable);
+                RenameColumn("ApPowerDiff", "APPD", ref filteredTable);
+
+                Cond2ColorFormat("SmPowerDiff", data.Count(), ref fullTable, ref FullWS, 0, "#00FF00", 15, "#FF0000");
+                Cond2ColorFormat("SmPowerDiff", filtered.Count(), ref filteredTable, ref FilteredWS, 0, "#00FF00", 15, "#FF0000");
+                CommentColumn("SmPowerDiff", "SM side power difference between Expected and Actual", ref fullTable, ref FullWS);
+                CommentColumn("SmPowerDiff", "SM side power difference between Expected and Actual", ref filteredTable, ref FilteredWS);
+                RenameColumn("SmPowerDiff", "SMPD", ref fullTable);
+                RenameColumn("SmPowerDiff", "SMPD", ref filteredTable);
+
+                fullTable.ShowFilter = false;
+                filteredTable.ShowFilter = false;
+
+                FullWS.Cells[FullWS.Dimension.Address].AutoFitColumns();
+                FilteredWS.Cells[FilteredWS.Dimension.Address].AutoFitColumns();
+                ep.SaveAs(new FileInfo(outputConf.FileName));
             }
         }
 
@@ -279,6 +293,7 @@ namespace CambiumSignalValidator
 
             IConfigurationRoot configuration = builder.Build();
 
+            configuration.GetSection("cnMaestro").Bind(cnMaestroConf);
             configuration.GetSection("cnMaestro").Bind(cnMaestroConf);
             configuration.GetSection("canopySnmp").Bind(snmpConf);
             

@@ -107,8 +107,6 @@ namespace CambiumSignalValidator
                 Tx: cambiumType.AP[apDevice.product].Radio(apStats.radio.tx_power),
                 Rx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power));
 
-            //TODO : split SM and AP gain on the device types
-
             // apEPL === The power transmitted from the SM and what we expect to see on the AP
             var apEPL = RFCalc.EstimatedPowerLevel(
                 smDistanceM,

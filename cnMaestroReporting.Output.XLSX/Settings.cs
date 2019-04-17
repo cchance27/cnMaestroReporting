@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace CambiumSignalValidator
+namespace cnMaestroReporting.Output.XLSX
 {
     public class Settings
     {

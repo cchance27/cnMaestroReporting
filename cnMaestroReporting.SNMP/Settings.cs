@@ -1,4 +1,4 @@
-﻿namespace CambiumSNMP
+﻿namespace cnMaestroReporting.SNMP
 {
     public class Settings
     {

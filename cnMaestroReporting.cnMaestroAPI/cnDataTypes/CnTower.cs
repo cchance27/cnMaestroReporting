@@ -1,7 +1,6 @@
-﻿using cnMaestro.JsonType;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 
-namespace cnMaestro.cnDataType
+namespace cnMaestroReporting.cnMaestroAPI.cnDataType
 {
     public struct CnTower: ICnMaestroDataType
     {

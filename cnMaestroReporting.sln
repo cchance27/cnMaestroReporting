@@ -3,13 +3,17 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28307.168
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CambiumSignalValidator", "CambiumSignalValidator\CambiumSignalValidator.csproj", "{2985D43B-6D66-4F12-B983-BAAC693752A2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.CLI", "cnMaestroReporting.CLI\cnMaestroReporting.CLI.csproj", "{2985D43B-6D66-4F12-B983-BAAC693752A2}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestro", "cnMaestro\cnMaestro.csproj", "{DE4C5707-25CF-4B4D-B3CC-9658937E2185}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.cnMaestroAPI", "cnMaestroReporting.cnMaestroAPI\cnMaestroReporting.cnMaestroAPI.csproj", "{DE4C5707-25CF-4B4D-B3CC-9658937E2185}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CommonCalculations", "CommonCalculations\CommonCalculations.csproj", "{9DCFC77F-3D30-4A97-8708-CBBC6D9E9FCC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CambiumSNMP", "CambiumSNMP\CambiumSNMP.csproj", "{4F182158-EED5-4154-81E6-CA12A7130FDA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.SNMP", "cnMaestroReporting.SNMP\cnMaestroReporting.SNMP.csproj", "{4F182158-EED5-4154-81E6-CA12A7130FDA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cnMaestroReporting.Output.XLSX", "cnMaestroReporting.Output.XLSX\cnMaestroReporting.Output.XLSX.csproj", "{D5E090EA-C57F-46BB-857B-03C493EA5B1A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cnMaestroReporting.Domain", "cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj", "{BF7A7BBB-8917-444C-8CE5-B5A119303CF9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +37,14 @@ Global
 		{4F182158-EED5-4154-81E6-CA12A7130FDA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4F182158-EED5-4154-81E6-CA12A7130FDA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4F182158-EED5-4154-81E6-CA12A7130FDA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D5E090EA-C57F-46BB-857B-03C493EA5B1A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5E090EA-C57F-46BB-857B-03C493EA5B1A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D5E090EA-C57F-46BB-857B-03C493EA5B1A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5E090EA-C57F-46BB-857B-03C493EA5B1A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF7A7BBB-8917-444C-8CE5-B5A119303CF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF7A7BBB-8917-444C-8CE5-B5A119303CF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF7A7BBB-8917-444C-8CE5-B5A119303CF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF7A7BBB-8917-444C-8CE5-B5A119303CF9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

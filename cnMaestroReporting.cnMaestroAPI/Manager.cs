@@ -1,4 +1,4 @@
-﻿using cnMaestro.JsonType;
+﻿using cnMaestroReporting.cnMaestroAPI.JsonType;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
@@ -10,7 +10,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace cnMaestro
+namespace cnMaestroReporting.cnMaestroAPI
 {
     public class Manager
     {

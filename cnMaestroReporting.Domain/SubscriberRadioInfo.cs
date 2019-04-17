@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace CambiumSignalValidator
+namespace cnMaestroReporting.Domain
 {
     public struct SubscriberRadioInfo
     {

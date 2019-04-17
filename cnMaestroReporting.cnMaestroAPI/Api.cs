@@ -1,11 +1,11 @@
-﻿using cnMaestro.cnDataType;
+﻿using cnMaestroReporting.cnMaestroAPI.cnDataType;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace cnMaestro
+namespace cnMaestroReporting.cnMaestroAPI
 {
     public class Api
     {

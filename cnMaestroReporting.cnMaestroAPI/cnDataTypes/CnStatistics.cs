@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 
-namespace cnMaestro.cnDataType
+namespace cnMaestroReporting.cnMaestroAPI.cnDataType
 {
     public struct CnStatistics: ICnMaestroDataType
     {

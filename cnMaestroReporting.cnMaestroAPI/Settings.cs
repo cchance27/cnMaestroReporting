@@ -1,4 +1,4 @@
-﻿namespace cnMaestro
+﻿namespace cnMaestroReporting.cnMaestroAPI
 {
     public class Settings
     {

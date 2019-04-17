@@ -1,7 +1,7 @@
 ﻿using CommonCalculations;
 using System.Collections.Generic;
 
-namespace CambiumSignalValidator
+namespace cnMaestroReporting.Domain
 {
     public class RadioConfig
     {

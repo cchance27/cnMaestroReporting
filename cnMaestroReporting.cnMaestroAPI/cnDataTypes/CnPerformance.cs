@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace cnMaestro.cnDataType
+namespace cnMaestroReporting.cnMaestroAPI.cnDataType
 {
     public struct CnPerformance : ICnMaestroDataType
     {

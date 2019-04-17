@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using SnmpSharpNet;
 
-namespace CambiumSNMP
+namespace cnMaestroReporting.SNMP
 {
     public class Manager
     {

@@ -1,4 +1,4 @@
-﻿namespace CambiumSNMP
+﻿namespace cnMaestroReporting.SNMP
 {
     // For storing the most common OIDs
     public static class OIDs

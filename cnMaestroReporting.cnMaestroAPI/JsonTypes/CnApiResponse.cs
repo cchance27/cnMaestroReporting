@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.Collections.Generic;
 
-namespace cnMaestro.JsonType
+namespace cnMaestroReporting.cnMaestroAPI.JsonType
 {
     public struct CnApiResponse<T>
     {

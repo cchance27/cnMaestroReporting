@@ -13,7 +13,6 @@ namespace cnMaestroReporting.Output.XLSX
 {
     public class Manager
     {
-        private string OutputFile { get; } 
         private ExcelPackage ExcelDoc { get; }
         public Settings settings = new Settings();
 
@@ -23,11 +22,6 @@ namespace cnMaestroReporting.Output.XLSX
 
             if (ExcelDoc == null)
                 ExcelDoc = new ExcelPackage();
-
-            if (String.IsNullOrWhiteSpace(settings.FileName))
-                OutputFile = $"Subscriber Report {DateTime.Now.ToString("yyyy-MM-dd")}.xlsx";
-            else
-                OutputFile = settings.FileName;
         }
 
         /// <summary>
@@ -133,7 +127,13 @@ namespace cnMaestroReporting.Output.XLSX
         /// <param name="ew"></param>
         public void Save()
         {
-            ExcelDoc.SaveAs(new FileInfo(OutputFile));
+            string FileName;
+            if (String.IsNullOrWhiteSpace(settings.FileName))
+                FileName = $"Subscriber Map {DateTime.Now.ToString("yyyy-MM-dd")}.kmz";
+            else
+                FileName = settings.FileName;
+
+            ExcelDoc.SaveAs(new FileInfo(FileName));
         }
 
         private void CommentColumn(string ColumnName, string Comment, ref ExcelTable table, ref ExcelWorksheet ew)

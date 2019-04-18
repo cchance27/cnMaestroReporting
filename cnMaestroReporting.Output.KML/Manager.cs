@@ -154,8 +154,14 @@ namespace cnMaestroReporting.Output.KML
         /// </summary>
         public void Save()
         {
+            string FileName;
+            if (String.IsNullOrWhiteSpace(settings.FileName))
+                FileName = $"Subscriber Map {DateTime.Now.ToString("yyyy-MM-dd")}.kmz";
+            else
+                FileName = settings.FileName;
+
             KmlFile kmlFile = KmlFile.Create(OutputKml, true);
-            using (FileStream fs = new FileStream(settings.FileName, FileMode.Create))
+            using (FileStream fs = new FileStream(FileName, FileMode.Create))
             {
                 using (KmzFile kmz = KmzFile.Create(kmlFile))
                 {

@@ -1,4 +1,5 @@
 ﻿using cnMaestroReporting.Domain;
+using Microsoft.Extensions.Configuration;
 using OfficeOpenXml;
 using OfficeOpenXml.ConditionalFormatting;
 using OfficeOpenXml.Table;
@@ -14,19 +15,19 @@ namespace cnMaestroReporting.Output.XLSX
     {
         private string OutputFile { get; } 
         private ExcelPackage ExcelDoc { get; }
-        public Settings OutputConf { get; }
+        public Settings settings = new Settings();
 
-        public Manager(Settings outputConf)
+        public Manager(IConfigurationSection configSection)
         {
-            OutputConf = outputConf;
+            configSection.Bind(settings);
 
             if (ExcelDoc == null)
                 ExcelDoc = new ExcelPackage();
 
-            if (String.IsNullOrWhiteSpace(OutputConf.FileName))
+            if (String.IsNullOrWhiteSpace(settings.FileName))
                 OutputFile = $"Subscriber Report {DateTime.Now.ToString("yyyy-MM-dd")}.xlsx";
             else
-                OutputFile = OutputConf.FileName;
+                OutputFile = settings.FileName;
         }
 
         /// <summary>
@@ -37,8 +38,8 @@ namespace cnMaestroReporting.Output.XLSX
         public void Generate(IEnumerable<SubscriberRadioInfo> data)
         {
             var filtered = data.Where(dev =>
-               (dev.SmPowerDiff > OutputConf.BadPowerDiff || dev.ApPowerDiff > OutputConf.BadPowerDiff) &&
-               (dev.SmAPL < OutputConf.LowSignal || dev.ApAPL < OutputConf.LowSignal)).ToList();
+               (dev.SmPowerDiff > settings.BadPowerDiff || dev.ApPowerDiff > settings.BadPowerDiff) &&
+               (dev.SmAPL < settings.LowSignal || dev.ApAPL < settings.LowSignal)).ToList();
 
             // Fix for us not having any filtered or data crashing the export.
             var dataTableCount = data.Count();

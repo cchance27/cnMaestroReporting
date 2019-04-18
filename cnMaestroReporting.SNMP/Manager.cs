@@ -4,70 +4,49 @@ using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using SnmpSharpNet;
 
 namespace cnMaestroReporting.SNMP
 {
     public class Manager
     {
-        private OctetString _community { get; set; } = new OctetString("public");
-        public string Community
-        {
-            get => _community.ToString();
-            set => _community = new OctetString(value);
-        }
         private SemaphoreSlim _taskThrottle { get; }
+        public Settings settings { get; set; } = new Settings();
 
-        private SnmpVersion _version { get; set; } = SnmpVersion.Ver2;
-        public int Version
-        {
-            get => (int)_version;
-            set
-            {
-                // Using a custom instead because the library doesn't convert from int properly, Ver3 == 3 but Ver1, Ver2 are 0 and 1
-                if (value == 1)
-                {
-                    _version = SnmpVersion.Ver1;
-                }
-                else if (value == 2)
-                {
-                    _version = SnmpVersion.Ver2;
-                }
-                else
-                {
-                    throw new NotSupportedException("Only SNMP Version 1 and Version 2 are supported currently.");
-                }
-            }
-        }
-
-        public int Timeout { get; set; } = 2000;
-        public int Port { get; set; } = 161;
-        public int Retry { get; set; } = 0;
-
-        private IAgentParameters _agentParameters { get => new AgentParameters(_version, _community); }
+        private IAgentParameters _agentParameters { get => new AgentParameters(settings.SnmpVer, settings.SnmpCommunity); }
 
         /// <summary>
         /// Base Constructor for setting up all the variables to be used for SNMP.
         /// </summary>
         /// <param name="community"></param>
-        /// <param name="snmpVersion"></param>
+        /// <param name="version"></param>
         /// <param name="retries"></param>
         /// <param name="timeout"></param>
         /// <param name="port"></param>
         /// <param name="threads"></param>
-        public Manager(string community, int snmpVersion, int retries = 0, int timeout = 2000, int port = 161, int threads = 4)
+        public Manager(string community, int version, int retries = 0, int timeout = 2000, int port = 161, int threads = 4)
         {
             // Use external methods so that it handles the proper conversions just like independently setting.
-            Community = community;
-            Version = snmpVersion;
-            Timeout = timeout;
-            Port = port;
-            Retry = Retry;
+            settings.Community = community;
+            settings.Version = version;
+            settings.Timeout = timeout;
+            settings.Port = port;
+            settings.Retries = retries;
+            settings.Threads = threads;
 
             if (_taskThrottle == null)
                 _taskThrottle = new SemaphoreSlim(threads);
         }
-        
+
+        public Manager(IConfigurationSection configSection)
+        {
+            configSection.Bind(settings);
+
+            if (_taskThrottle == null)
+                _taskThrottle = new SemaphoreSlim(settings.Threads);
+        }
+
         /// <summary>
         /// Create a manager based on a CambiumSNMP.Settings
         /// </summary>
@@ -92,7 +71,7 @@ namespace cnMaestroReporting.SNMP
             foreach (string oid in oids)
                 pdu.VbList.Add(oid);
 
-            using (UdpTarget target = new UdpTarget(ip, Port, Timeout, Retry))
+            using (UdpTarget target = new UdpTarget(ip, settings.Port, settings.Timeout, settings.Retries))
             {
                 SnmpPacket result = target.Request(pdu, _agentParameters);
                 

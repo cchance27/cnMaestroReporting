@@ -12,34 +12,27 @@ namespace cnMaestroReporting.CLI
 {
     class Program
     {
-        private static cnMaestroAPI.Manager cnManager { get; set; }
-        private static cnMaestroAPI.Settings cnMaestroConf = new cnMaestroReporting.cnMaestroAPI.Settings();
-        private static SNMP.Settings snmpConf = new SNMP.Settings();
-        private static Output.XLSX.Settings outputConf = new Output.XLSX.Settings();
-        private static RadioConfig cambiumType;
+        private static cnMaestroAPI.Manager cnManager { get; set; } // Our access to cnMaestro
+        private static RadioConfig cambiumRadios; // Holds the model configurations we use for various cambium devices.
+        private static IConfigurationRoot generalConfig; // Holds the general config for the app and plugins
 
         private static async Task Main(string[] args)
         {
-            FetchConfiguration(); // Load our appSettings
-            // Currently the program is only being used for testing various functions we will eventually have a real workflow.
-            //TODO: Filtering change to KVP pair as doing it with strings is nasty
-
-            cnManager = new cnMaestroAPI.Manager(cnMaestroConf);
+            generalConfig = FetchConfiguration(); // Load our appSettings into generalConfig
+            
+            //cnManager sets up generic settings and configuration for the overall connection to cnMaestro (authentication)
+            cnManager = new cnMaestroAPI.Manager(generalConfig.GetSection("cnMaestro"));
             await cnManager.ConnectAsync();
-            var cnApi = new cnMaestroAPI.Api(cnManager);
-            var snmp = new SNMP.Manager(snmpConf.Community, snmpConf.Version, snmpConf.Retries);
+
+            // Initialize our SNMP Controller
+            var snmp = new SNMP.Manager(generalConfig.GetSection("snmp"));
 
             try
             {
-                var Towers = await cnApi.GetTowersAsync(cnMaestroConf.Network);
-
-                // TODO: we can add a fields= filter so we can reduce how much we're pulling from API
-                var towerFilter = "";
-                if (String.IsNullOrWhiteSpace(cnMaestroConf.Tower) == false)
-                    towerFilter = "tower=" + Uri.EscapeDataString(cnMaestroConf.Tower);
-                    
-                var deviceStatTask = cnApi.GetMultipleDevStatsAsync(towerFilter);
-                var deviceTask = cnApi.GetMultipleDevicesAsync(towerFilter);
+                // Get all the device info from cnMaestro we will be using for the program loop
+                var towers = await cnManager.Api.GetTowersAsync();
+                var deviceStatTask = cnManager.Api.GetMultipleDevStatsAsync();
+                var deviceTask = cnManager.Api.GetMultipleDevicesAsync();
                 Task.WaitAll(deviceTask, deviceStatTask);
 
                 var devices = deviceTask.Result
@@ -49,7 +42,7 @@ namespace cnMaestroReporting.CLI
                 var apStats = deviceStatTask.Result
                     .Where(dev => dev.mode == "ap" && dev.status == "online")
                     .ToDictionary(ap => ap.mac);   // All statistics by mac key 
-
+                
                 var smIPs = deviceStatTask.Result
                     .Where(dev => dev.mode == "sm" && dev.status == "online")
                     .Select(dev => devices[dev.mac].ip).ToArray(); // Array of SM IPs to poll
@@ -68,8 +61,17 @@ namespace cnMaestroReporting.CLI
                         smSnmp: snmpResults[devices[smStat.mac].ip]));
 
                 // Export to XLSX
-                var outputManager = new Output.XLSX.Manager(outputConf);
-                outputManager.Generate(finalSubResults.ToList());
+                var outputXLSX = new Output.XLSX.Manager(generalConfig.GetSection("outputs:xlsx"));
+                outputXLSX.Generate(finalSubResults.ToList());
+                outputXLSX.Save();
+
+                // Export to KMZ
+                var outputKML = new Output.KML.Manager(generalConfig.GetSection("outputs:kml"));
+                outputKML.GenerateKML(
+                    finalSubResults.ToList(), 
+                    towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)), 
+                    apStats.Select(apStat => new KeyValuePair<string, string>(apStat.Value.name, apStat.Value.tower)));
+                outputKML.Save();
             }
             catch (Exception e)
             {
@@ -100,28 +102,28 @@ namespace cnMaestroReporting.CLI
             // If we have smGain from cnMaestro let's use it if not fall back to our configured value.
             Int32.TryParse(smStats.gain, out int smGain);
             if (smGain == 0)
-                smGain = cambiumType.SM[smDevice.product].AntennaGain;
+                smGain = cambiumRadios.SM[smDevice.product].AntennaGain;
 
             // Odd irregularity where cnMaestro sends a -30 let's assume max Tx since it's obviously transmitting as we have a SM to calculate on the panel.
-            var apTx = apStats.radio.tx_power ?? cambiumType.AP[apDevice.product].MaxTransmit;
+            var apTx = apStats.radio.tx_power ?? cambiumRadios.AP[apDevice.product].MaxTransmit;
             if (apTx < 0)
-                apTx = cambiumType.AP[apDevice.product].MaxTransmit;
+                apTx = cambiumRadios.AP[apDevice.product].MaxTransmit;
 
             // smEPL === The power transmitted from the AP and what we expect to see on the SM
             var smEPL = RFCalc.EstimatedPowerLevel(
                 smDistanceM,
                 smFrequencyHz,
                 0,
-                Tx: cambiumType.AP[apDevice.product].Radio(apTx),
-                Rx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain));
+                Tx: cambiumRadios.AP[apDevice.product].Radio(apTx),
+                Rx: cambiumRadios.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain));
 
             // apEPL === The power transmitted from the SM and what we expect to see on the AP
             var apEPL = RFCalc.EstimatedPowerLevel(
                 smDistanceM,
                 smFrequencyHz,
                 0,
-                Tx: cambiumType.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain),
-                Rx: cambiumType.AP[apDevice.product].Radio(apTx));
+                Tx: cambiumRadios.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain),
+                Rx: cambiumRadios.AP[apDevice.product].Radio(apTx));
 
             Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
 
@@ -145,8 +147,8 @@ namespace cnMaestroReporting.CLI
                 ApEPL = Math.Round(apEPL, 2),
                 ApAPL = smStats.radio.ul_rssi ?? -1,
                 ApTxPower = apTx,
-                SmTxPower = smStats.radio.tx_power ?? cambiumType.SM[smDevice.product].MaxTransmit,
-                SmMaxTxPower = cambiumType.SM[smDevice.product].MaxTransmit, 
+                SmTxPower = smStats.radio.tx_power ?? cambiumRadios.SM[smDevice.product].MaxTransmit,
+                SmMaxTxPower = cambiumRadios.SM[smDevice.product].MaxTransmit, 
             };
         }
 
@@ -154,7 +156,7 @@ namespace cnMaestroReporting.CLI
         /// Opens the configuration JSON's for the access methods (cnMaestro and SNMP), 
         /// as well as loading the various radiotypes from JSON
         /// </summary>
-        private static void FetchConfiguration()
+        private static IConfigurationRoot FetchConfiguration()
         {
             var builder = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
@@ -162,13 +164,12 @@ namespace cnMaestroReporting.CLI
                 .AddJsonFile("radiotypes.json", optional: false, reloadOnChange: false);
 
             IConfigurationRoot configuration = builder.Build();
+            
+            // Setup config for the main eventloop
+            cambiumRadios = configuration.Get<RadioConfig>();
 
-            configuration.GetSection("cnMaestro").Bind(cnMaestroConf);
-            configuration.GetSection("cnMaestro").Bind(cnMaestroConf);
-            configuration.GetSection("canopySnmp").Bind(snmpConf);
-            
-            cambiumType = configuration.Get<RadioConfig>();
-            
+            // Return overall config so we can pass it to plugins
+            return configuration;
         }
     }
 }

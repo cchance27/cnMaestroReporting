@@ -1,4 +1,5 @@
 ﻿using cnMaestroReporting.cnMaestroAPI.JsonType;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
@@ -14,15 +15,17 @@ namespace cnMaestroReporting.cnMaestroAPI
 {
     public class Manager
     {
-        private Dictionary<string, string> _credentials { get; }
-        private FormUrlEncodedContent _tokenCredentials { get; }
+        private Dictionary<string, string> _credentials { get; set;  }
+        private FormUrlEncodedContent _tokenCredentials { get; set; }
         private string _tokenEndpoint { get => _apiURL + "/access/token"; }
-        private string _apiURL { get; }
-        private int _apiFetchLimit { get; }
+        private string _apiURL { get; set; }
+        private int _apiFetchLimit { get; set;  }
+        public Settings settings = new Settings();
+        private SemaphoreSlim _taskThrottle { get; set; }
+        private TextWriter _outputLog { get; set; }
+        private HttpClient _client { get; set; }
 
-        private SemaphoreSlim _taskThrottle { get; }
-        private TextWriter _outputLog { get; }
-        private HttpClient _client { get; }
+        public Api Api { get; set; }
 
         /// <summary>
         /// Constructor that creates a manager with all the basic values provided.
@@ -33,7 +36,8 @@ namespace cnMaestroReporting.cnMaestroAPI
         /// <param name="apiFetchLimit"></param>
         /// <param name="threads"></param>
         /// <param name="logger"></param>
-        public Manager(string clientID, string clientSecret, string apiDomain, int apiFetchLimit = 100, int threads = 4, TextWriter logger = null)
+
+        public void SetupManager(string clientID, string clientSecret, string apiDomain, int apiFetchLimit = 100, int threads = 4, TextWriter logger = null)
         {
             if (_credentials == null)
                 _credentials = new Dictionary<string, string>();
@@ -64,7 +68,20 @@ namespace cnMaestroReporting.cnMaestroAPI
         /// </summary>
         /// <param name="settings"></param>
         /// <param name="logger"></param>
-        public Manager(Settings settings, TextWriter logger = null): this(settings.ApiClientID, settings.ApiClientSecret, settings.ApiDomain, settings.ApiPageLimit, settings.ApiThreads, logger) { }
+        public Manager(Settings _settings, TextWriter logger = null) {
+            settings = _settings;
+            SetupManager(settings.ApiClientID, settings.ApiClientSecret, settings.ApiDomain, settings.ApiPageLimit, settings.ApiThreads, logger);
+        }
+
+        /// <summary>
+        /// Passed a clean config section from our creator
+        /// </summary>
+        /// <param name="configSection"></param>
+        public Manager(IConfigurationSection configSection, TextWriter logger = null)
+        {
+            configSection.Bind(settings);
+            SetupManager(settings.ApiClientID, settings.ApiClientSecret, settings.ApiDomain, settings.ApiPageLimit, settings.ApiThreads, logger);
+        }
 
         /// <summary>
         /// Connect to the API and grab our valid bearer token we will be using
@@ -86,6 +103,9 @@ namespace cnMaestroReporting.cnMaestroAPI
                 _outputLog.WriteLine($"Login Error Response: { responseText }");
                 response.EnsureSuccessStatusCode();
             }
+
+            if (Api == null)
+                Api = new Api(this);
         }
 
         /// <summary>

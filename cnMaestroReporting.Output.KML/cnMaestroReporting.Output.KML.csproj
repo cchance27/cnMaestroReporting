@@ -2,15 +2,18 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.2</TargetFramework>
+    <LangVersion>7.3</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EPPlus" Version="4.5.3.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="2.2.4" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.2.0" />
+    <PackageReference Include="SharpKml.Core" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\cnMaestroReporting.cnMaestroAPI\cnMaestroReporting.cnMaestroAPI.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj" />
   </ItemGroup>
 

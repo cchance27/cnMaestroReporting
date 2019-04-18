@@ -11,9 +11,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CommonCalculations", "Commo
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.SNMP", "cnMaestroReporting.SNMP\cnMaestroReporting.SNMP.csproj", "{4F182158-EED5-4154-81E6-CA12A7130FDA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cnMaestroReporting.Output.XLSX", "cnMaestroReporting.Output.XLSX\cnMaestroReporting.Output.XLSX.csproj", "{D5E090EA-C57F-46BB-857B-03C493EA5B1A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.Output.XLSX", "cnMaestroReporting.Output.XLSX\cnMaestroReporting.Output.XLSX.csproj", "{D5E090EA-C57F-46BB-857B-03C493EA5B1A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cnMaestroReporting.Domain", "cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj", "{BF7A7BBB-8917-444C-8CE5-B5A119303CF9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.Domain", "cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj", "{BF7A7BBB-8917-444C-8CE5-B5A119303CF9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cnMaestroReporting.Output.KML", "cnMaestroReporting.Output.KML\cnMaestroReporting.Output.KML.csproj", "{48E4AC1B-4D90-4854-99A9-EF92923C704C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -45,6 +47,10 @@ Global
 		{BF7A7BBB-8917-444C-8CE5-B5A119303CF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BF7A7BBB-8917-444C-8CE5-B5A119303CF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BF7A7BBB-8917-444C-8CE5-B5A119303CF9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{48E4AC1B-4D90-4854-99A9-EF92923C704C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48E4AC1B-4D90-4854-99A9-EF92923C704C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48E4AC1B-4D90-4854-99A9-EF92923C704C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48E4AC1B-4D90-4854-99A9-EF92923C704C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

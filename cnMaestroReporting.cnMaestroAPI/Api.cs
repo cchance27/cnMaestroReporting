@@ -30,8 +30,12 @@ namespace cnMaestroReporting.cnMaestroAPI
         /// <param name="network"></param>
         /// <param name="filter"></param>
         /// <returns></returns>
-        public Task<IList<CnTower>> GetTowersAsync(string network, string filter = null) => 
-            _manager.GetFullApiResultsAsync<CnTower>($"/networks/{network}/towers", filter);
+        public Task<IList<CnTower>> GetTowersAsync() {
+            if (String.IsNullOrWhiteSpace(_manager.settings.Network))
+                throw new ArgumentNullException("Network", "Network Setting is required for cnMaestro");
+
+            return _manager.GetFullApiResultsAsync<CnTower>($"/networks/{_manager.settings.Network}/towers");
+        }
 
         /// <summary>
         /// Returns a list of devices based on a filter
@@ -39,7 +43,27 @@ namespace cnMaestroReporting.cnMaestroAPI
         /// <param name="macAddress"></param>
         /// <param name="filter"></param>
         /// <returns></returns>
-        public Task<IList<CnDevice>> GetMultipleDevicesAsync(string filter) => _manager.GetFullApiResultsAsync<CnDevice>($"/devices", filter);
+        public Task<IList<CnDevice>> GetMultipleDevicesAsync(string filter = null)
+        {
+            // TODO: Fix the hacky stuff and make it so that we can pass dictionary of filters instead of strings.
+            // Hacky way of doing this but should work. Grabbing the tower to filter by from config and combining with any passed filters.
+            if (String.IsNullOrWhiteSpace(filter) == false)
+            {
+                // We have a custom filter
+                if (String.IsNullOrWhiteSpace(_manager.settings.Tower) == false)
+                {
+                    // We also have a towerFilter from config
+                    filter = "tower=" + Uri.EscapeDataString(_manager.settings.Tower) + "&" + filter;
+                }
+            }
+            else
+            {
+                // We don't have a custom filter so lets just pass the towerFilter forward
+                filter = "tower=" + Uri.EscapeDataString(_manager.settings.Tower);
+            }
+
+            return _manager.GetFullApiResultsAsync<CnDevice>($"/devices", filter);
+        }
             
         /// <summary>
         /// Return a single device by macaddress
@@ -73,7 +97,26 @@ namespace cnMaestroReporting.cnMaestroAPI
         /// <param name="macAddress"></param>
         /// <param name="filter"></param>
         /// <returns></returns>
-        public Task<IList<CnStatistics>> GetMultipleDevStatsAsync(string filter) => _manager.GetFullApiResultsAsync<CnStatistics>($"/devices/statistics", filter);
+        public Task<IList<CnStatistics>> GetMultipleDevStatsAsync(string filter = null)
+        {
+            // Hacky way of doing this but should work. Grabbing the tower to filter by from config and combining with any passed filters.
+            if (String.IsNullOrWhiteSpace(filter) == false)
+            {
+                // We have a custom filter
+                if (String.IsNullOrWhiteSpace(_manager.settings.Tower) == false)
+                {
+                    // We also have a towerFilter from config
+                    filter = "tower=" + Uri.EscapeDataString(_manager.settings.Tower) + "&" + filter;
+                }
+            }
+            else
+            {
+                // We don't have a custom filter so lets just pass the towerFilter forward
+                filter = "tower=" + Uri.EscapeDataString(_manager.settings.Tower);
+            }
+
+            return _manager.GetFullApiResultsAsync<CnStatistics>($"/devices/statistics", filter);
+        }
 
 
         /// <summary>

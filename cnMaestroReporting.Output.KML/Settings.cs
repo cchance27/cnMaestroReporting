@@ -16,5 +16,7 @@ namespace cnMaestroReporting.Output.KML
         public float TextScale { get; set; }
         public float IconScale { get; set; }
         public int SignalLevel { get; set; }
+        public bool Visibility { get; set; }
+        public string Color { get; set; }
     }
 }

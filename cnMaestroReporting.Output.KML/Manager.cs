@@ -1,7 +1,6 @@
 ﻿using cnMaestroReporting.cnMaestroAPI.cnDataType;
 using cnMaestroReporting.Domain;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Configuration.Binder;
 using SharpKml.Base;
 using SharpKml.Dom;
 using SharpKml.Engine;
@@ -28,6 +27,8 @@ namespace cnMaestroReporting.Output.KML
 
         private Style CreateIconStyle(string name, StyleConfig config)
         {
+            var thisColor = System.Drawing.Color.FromName(config.Color);
+
             return new Style()
             {
                 Id = name,
@@ -35,10 +36,11 @@ namespace cnMaestroReporting.Output.KML
                 {
                     Icon = new IconStyle.IconLink(new Uri(config.Icon)),
                     Scale = config.IconScale
-                }, 
+                },
                 Label = new LabelStyle()
                 {
-                    Scale = config.TextScale
+                    Scale = config.TextScale,
+                    Color = String.IsNullOrWhiteSpace(config.Color) ? new Color32(255, 255, 255, 255) : new Color32(thisColor.A, thisColor.B, thisColor.G, thisColor.R)
                 }
             };
         }
@@ -83,8 +85,8 @@ namespace cnMaestroReporting.Output.KML
                             longitude: (double)tower.Value.coordinates[0])
                     }, 
                     StyleUrl = new Uri($"#{nameof(towerIcon)}", UriKind.Relative)
-
                 };
+                towerPlacemark.Visibility = settings.Icons["Tower"].Visibility;
 
                 // Loop through all the APs for this towers AP
                 foreach (var ap in aps.Where(ap => ap.Value == tower.Key).OrderBy(ap => ap.Key))
@@ -115,18 +117,22 @@ namespace cnMaestroReporting.Output.KML
                         if (sm.ApAPL <= settings.Icons["Bad"].SignalLevel)
                         {
                             smPlacemark.StyleUrl = new Uri($"#" + nameof(redIcon), UriKind.Relative);
+                            smPlacemark.Visibility = settings.Icons["Bad"].Visibility;
                         }
                         else if (sm.ApAPL <= settings.Icons["Poor"].SignalLevel)
                         {
                             smPlacemark.StyleUrl = new Uri($"#" + nameof(yellowIcon), UriKind.Relative);
+                            smPlacemark.Visibility = settings.Icons["Poor"].Visibility;
                         }
                         else if (sm.ApAPL <= settings.Icons["Good"].SignalLevel)
                         {
                             smPlacemark.StyleUrl = new Uri($"#" + nameof(greenIcon), UriKind.Relative);
+                            smPlacemark.Visibility = settings.Icons["Good"].Visibility;
                         }
                         else
                         {
                             smPlacemark.StyleUrl = new Uri($"#" + nameof(whiteIcon), UriKind.Relative);
+                            smPlacemark.Visibility = settings.Icons["Unknown"].Visibility;
                         }
 
                         sectorFolder.AddFeature(smPlacemark);

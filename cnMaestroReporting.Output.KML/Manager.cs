@@ -156,7 +156,7 @@ namespace cnMaestroReporting.Output.KML
         {
             string FileName;
             if (String.IsNullOrWhiteSpace(settings.FileName))
-                FileName = $"Subscriber Map {DateTime.Now.ToString("yyyy-MM-dd")}.kmz";
+                FileName = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Subscriber Map.kmz";
             else
                 FileName = settings.FileName;
 

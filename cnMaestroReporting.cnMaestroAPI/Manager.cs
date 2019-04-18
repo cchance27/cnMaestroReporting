@@ -163,28 +163,32 @@ namespace cnMaestroReporting.cnMaestroAPI
             var totalToFetch = firstCall.paging.Total;
             var recordsFetching = firstCall.data.Count<T>();
 
-            while (recordsFetching <= totalToFetch)
+            if (totalToFetch > recordsFetching)
             {
-                await _taskThrottle.WaitAsync();
+                // We still have more to get let's start looping
+                while (recordsFetching <= totalToFetch)
+                {
+                    await _taskThrottle.WaitAsync();
 
-                taskList.Add(
-                    // This will run in a new thread parallel on threadpool) 
-                    Task.Run(async () =>
-                    {
-                        try
+                    taskList.Add(
+                        // This will run in a new thread parallel on threadpool) 
+                        Task.Run(async () =>
                         {
-                            Interlocked.Add(ref offset, _apiFetchLimit);
-                            CnApiResponse<T> result = await CallApiAsync<T>(endPoint, filter, _apiFetchLimit, offset);
-                            
-                            Array.ForEach<T>(result.data, r => results.Add(r));
-                        }
-                        finally
-                        {
-                            _taskThrottle.Release();
-                        }
-                    }));
+                            try
+                            {
+                                Interlocked.Add(ref offset, _apiFetchLimit);
+                                CnApiResponse<T> result = await CallApiAsync<T>(endPoint, filter, _apiFetchLimit, offset);
 
-                recordsFetching += firstCall.paging.Limit;
+                                Array.ForEach<T>(result.data, r => results.Add(r));
+                            }
+                            finally
+                            {
+                                _taskThrottle.Release();
+                            }
+                        }));
+
+                    recordsFetching += firstCall.paging.Limit;
+                }
             }
 
             Task.WaitAll(taskList.ToArray());

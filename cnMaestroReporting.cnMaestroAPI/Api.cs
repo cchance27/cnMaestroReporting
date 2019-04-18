@@ -58,8 +58,12 @@ namespace cnMaestroReporting.cnMaestroAPI
             }
             else
             {
-                // We don't have a custom filter so lets just pass the towerFilter forward
-                filter = "tower=" + Uri.EscapeDataString(_manager.settings.Tower);
+                // We don't have a custom filter
+                if (String.IsNullOrWhiteSpace(_manager.settings.Tower) == false)
+                {
+                    // We also have a towerFilter from config
+                    filter = "tower=" + Uri.EscapeDataString(_manager.settings.Tower);
+                }
             }
 
             return _manager.GetFullApiResultsAsync<CnDevice>($"/devices", filter);
@@ -111,8 +115,12 @@ namespace cnMaestroReporting.cnMaestroAPI
             }
             else
             {
-                // We don't have a custom filter so lets just pass the towerFilter forward
-                filter = "tower=" + Uri.EscapeDataString(_manager.settings.Tower);
+                // We don't have a custom filter
+                if (String.IsNullOrWhiteSpace(_manager.settings.Tower) == false)
+                {
+                    // We also have a towerFilter from config
+                    filter = "tower=" + Uri.EscapeDataString(_manager.settings.Tower);
+                }
             }
 
             return _manager.GetFullApiResultsAsync<CnStatistics>($"/devices/statistics", filter);

@@ -54,7 +54,6 @@ namespace cnMaestroReporting.Output.KML
             Document doc = new Document();
 
             // Create styles
-            // TODO: Icon links settings from config
             Style yellowIcon, greenIcon, whiteIcon, redIcon, towerIcon;
             redIcon = CreateIconStyle(nameof(redIcon), settings.Icons["Bad"]);
             yellowIcon = CreateIconStyle(nameof(yellowIcon), settings.Icons["Poor"]);
@@ -66,6 +65,8 @@ namespace cnMaestroReporting.Output.KML
             doc.AddStyle(greenIcon);
             doc.AddStyle(redIcon);
             doc.AddStyle(towerIcon);
+
+            //TODO: add comments with counts to the tower folder, sector folder, etc.
 
             IEnumerable<Folder> siteFolders = towers.OrderBy(tower => tower.Key)
                 .Select(tower =>
@@ -87,7 +88,7 @@ namespace cnMaestroReporting.Output.KML
                     StyleUrl = new Uri($"#{nameof(towerIcon)}", UriKind.Relative)
                 };
                 towerPlacemark.Visibility = settings.Icons["Tower"].Visibility;
-
+                
                 // Loop through all the APs for this towers AP
                 foreach (var ap in aps.Where(ap => ap.Value == tower.Key).OrderBy(ap => ap.Key))
                 {
@@ -112,8 +113,12 @@ namespace cnMaestroReporting.Output.KML
                             }
                         };
 
+                        smPlacemark.Description = new Description()
+                        {
+                            Text = $"<![CDATA[http://{sm.IP}<br/>MAC: {sm.Esn}<br/><br/>SM Power Level: {sm.SmAPL}<br/>SM Expected Power Level: {sm.SmEPL}<br/><br/>AP Power Level: {sm.ApAPL}<br/>AP Expected Power Level: {sm.ApEPL}]]>"
+                        };
+
                         // Apply icon to SM based on Signal Level
-                        // TODO: change the values to be pulled from config.
                         if (sm.ApAPL <= settings.Icons["Bad"].SignalLevel)
                         {
                             smPlacemark.StyleUrl = new Uri($"#" + nameof(redIcon), UriKind.Relative);
@@ -146,7 +151,6 @@ namespace cnMaestroReporting.Output.KML
             });
 
             // Create our Root folder and add all of our siteFolders to it.
-            
             foreach (var F in siteFolders)
             {
                 doc.AddFeature(F);

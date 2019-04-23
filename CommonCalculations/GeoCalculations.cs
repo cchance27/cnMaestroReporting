@@ -16,10 +16,11 @@ namespace CommonCalculations
 
         public static Location LocationFromAzimuth(Location p1, double distance, double azimuth)
         {
-             double δ = distance / earthRadius;
-             double θ = azimuth * Math.PI / 180;
-             double φ1 = p1.Latitude * Math.PI / 180;
-             double λ1 = p1.Longitude * Math.PI / 180;
+            // Adopted from wikipedia.
+            double δ = distance / earthRadius;
+            double θ = azimuth * Math.PI / 180;
+            double φ1 = p1.Latitude * Math.PI / 180;
+            double λ1 = p1.Longitude * Math.PI / 180;
 
             double sinφ1 = Math.Sin(φ1);
             double cosφ1 = Math.Cos(φ1);

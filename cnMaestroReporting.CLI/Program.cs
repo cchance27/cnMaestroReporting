@@ -66,11 +66,12 @@ namespace cnMaestroReporting.CLI
                 outputXLSX.Save();
 
                 // Export to KMZ
-                var outputKML = new Output.KML.Manager(generalConfig.GetSection("outputs:kml"));
-                outputKML.GenerateKML(
+                var outputKML = new Output.KML.Manager(generalConfig.GetSection("outputs:kml"), 
                     finalSubResults.ToList(), 
                     towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)), 
-                    apStats.Select(apStat => new KeyValuePair<string, string>(apStat.Value.name, apStat.Value.tower)));
+                    apStats.Select(apStat => new KeyValuePair<string, string>(apStat.Value.name, apStat.Value.tower))
+                    );
+                outputKML.GenerateKML();
                 outputKML.Save();
             }
             catch (Exception e)

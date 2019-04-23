@@ -15,14 +15,37 @@ namespace cnMaestroReporting.Output.KML
     {
         public Settings settings = new Settings();
         public Kml OutputKml { get; }
+        private Style yellowIcon { get; }
+        private Style greenIcon { get; }
+        private Style whiteIcon { get; }
+        private Style redIcon { get; }
+        private Style towerIcon { get; }
 
-        public Manager(IConfigurationSection configSection)
+        private IEnumerable<SubscriberRadioInfo> _subscribers { get; }
+        private IEnumerable<KeyValuePair<string, CnLocation>> _towers { get; }
+        private IEnumerable<KeyValuePair<string, string>> _accessPoints { get; }
+
+        public Manager(
+            IConfigurationSection configSection, 
+            IEnumerable<SubscriberRadioInfo> subscribers, 
+            IEnumerable<KeyValuePair<string, CnLocation>> towers, 
+            IEnumerable<KeyValuePair<string, string>> accesspoints)
         {
             // Bind our configuration
             configSection.Bind(settings);
 
             if (OutputKml == null)
                 OutputKml = new Kml();
+
+            redIcon = CreateIconStyle(nameof(redIcon), settings.Icons["Bad"]);
+            yellowIcon = CreateIconStyle(nameof(yellowIcon), settings.Icons["Poor"]);
+            greenIcon = CreateIconStyle(nameof(greenIcon), settings.Icons["Good"]);
+            whiteIcon = CreateIconStyle(nameof(whiteIcon), settings.Icons["Unknown"]);
+            towerIcon = CreateIconStyle(nameof(towerIcon), settings.Icons["Tower"]);
+
+            _subscribers = subscribers.OrderBy(sm => sm.Name);
+            _towers = towers.OrderBy(tower => tower.Key);
+            _accessPoints = accesspoints.OrderBy(ap => ap.Key);
         }
 
         private Style CreateIconStyle(string name, StyleConfig config)
@@ -45,31 +68,27 @@ namespace cnMaestroReporting.Output.KML
             };
         }
 
-        public void GenerateKML(
-            IEnumerable<SubscriberRadioInfo> data, 
-            IEnumerable<KeyValuePair<string, CnLocation>> towers, 
-            IEnumerable<KeyValuePair<string, string>> aps)
-        {
+        public void GenerateKML() {
             // Base document to hold styles and items
             Document doc = new Document();
 
             // Create styles
-            Style yellowIcon, greenIcon, whiteIcon, redIcon, towerIcon;
-            redIcon = CreateIconStyle(nameof(redIcon), settings.Icons["Bad"]);
-            yellowIcon = CreateIconStyle(nameof(yellowIcon), settings.Icons["Poor"]);
-            greenIcon = CreateIconStyle(nameof(greenIcon), settings.Icons["Good"]);
-            whiteIcon = CreateIconStyle(nameof(whiteIcon), settings.Icons["Unknown"]);
-            towerIcon = CreateIconStyle(nameof(towerIcon), settings.Icons["Tower"]);
-                                                             
             doc.AddStyle(yellowIcon);
             doc.AddStyle(greenIcon);
             doc.AddStyle(redIcon);
             doc.AddStyle(towerIcon);
 
             //TODO: add comments with counts to the tower folder, sector folder, etc.
+            IEnumerable<Folder> siteFolders = _towers.Select(generateTower);
 
-            IEnumerable<Folder> siteFolders = towers.OrderBy(tower => tower.Key)
-                .Select(tower =>
+            // Create our Root folder and add all of our siteFolders to it.
+            foreach (var F in siteFolders) { doc.AddFeature(F); }
+           
+            OutputKml.Feature = doc;
+        }
+
+        private Folder generateTower(KeyValuePair<string, CnLocation> tower)
+        {
             {
                 // Generate folder for containing all this towers ap, sectors, sms.
                 var towerFolder = new Folder() { Name = tower.Key };
@@ -84,63 +103,26 @@ namespace cnMaestroReporting.Output.KML
                         Coordinate = new Vector(
                             latitude: (double)tower.Value.coordinates[1],
                             longitude: (double)tower.Value.coordinates[0])
-                    }, 
+                    },
                     StyleUrl = new Uri($"#{nameof(towerIcon)}", UriKind.Relative)
                 };
                 towerPlacemark.Visibility = settings.Icons["Tower"].Visibility;
-                
+
                 // Loop through all the APs for this towers AP
-                foreach (var ap in aps.Where(ap => ap.Value == tower.Key).OrderBy(ap => ap.Key))
+                foreach (var ap in _accessPoints.Where(ap => ap.Value == tower.Key))
                 {
                     // Create this sectors folder to hold all subscribers
                     var sectorFolder = new Folder() { Name = ap.Key };
 
                     // Fetch all subscribers for this specific sector.
-                    var sectorSubscribers = data.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.APName == ap.Key).OrderBy(sm => sm.Name);
+                    var sectorSubscribers = _subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.APName == ap.Key);
 
                     // Loop through and create all the placemarks for these sector subscribers.
                     foreach (var sm in sectorSubscribers)
                     {
-                        var smPlacemark = new Placemark()
-                        {
-                            Name = sm.Name,
-                            Id = sm.Name,
-                            Geometry = new Point()
-                            {
-                                Coordinate = new Vector(
-                                    latitude: (double)sm.Latitude,
-                                    longitude: (double)sm.Longitude)
-                            }
-                        };
-
-                        smPlacemark.Description = new Description()
-                        {
-                            Text = $"<![CDATA[http://{sm.IP}<br/>MAC: {sm.Esn}<br/><br/>SM Power Level: {sm.SmAPL}<br/>SM Expected Power Level: {sm.SmEPL}<br/><br/>AP Power Level: {sm.ApAPL}<br/>AP Expected Power Level: {sm.ApEPL}]]>"
-                        };
-
-                        // Apply icon to SM based on Signal Level
-                        if (sm.ApAPL <= settings.Icons["Bad"].SignalLevel)
-                        {
-                            smPlacemark.StyleUrl = new Uri($"#" + nameof(redIcon), UriKind.Relative);
-                            smPlacemark.Visibility = settings.Icons["Bad"].Visibility;
-                        }
-                        else if (sm.ApAPL <= settings.Icons["Poor"].SignalLevel)
-                        {
-                            smPlacemark.StyleUrl = new Uri($"#" + nameof(yellowIcon), UriKind.Relative);
-                            smPlacemark.Visibility = settings.Icons["Poor"].Visibility;
-                        }
-                        else if (sm.ApAPL <= settings.Icons["Good"].SignalLevel)
-                        {
-                            smPlacemark.StyleUrl = new Uri($"#" + nameof(greenIcon), UriKind.Relative);
-                            smPlacemark.Visibility = settings.Icons["Good"].Visibility;
-                        }
-                        else
-                        {
-                            smPlacemark.StyleUrl = new Uri($"#" + nameof(whiteIcon), UriKind.Relative);
-                            smPlacemark.Visibility = settings.Icons["Unknown"].Visibility;
-                        }
-
+                        var smPlacemark = generateSmPlacemark(sm);
                         sectorFolder.AddFeature(smPlacemark);
+
                     }
 
                     towerFolder.AddFeature(sectorFolder);
@@ -148,15 +130,55 @@ namespace cnMaestroReporting.Output.KML
 
                 towerFolder.AddFeature(towerPlacemark);
                 return towerFolder;
-            });
-
-            // Create our Root folder and add all of our siteFolders to it.
-            foreach (var F in siteFolders)
-            {
-                doc.AddFeature(F);
             }
-           
-            OutputKml.Feature = doc;
+        }
+
+        /// <summary>
+        ///  Take a subscriberRadioInfo and return a nice SmPlacemark with all necesary subscriber information and location information.
+        /// </summary>
+        /// <param name="sm"></param>
+        private Placemark generateSmPlacemark(SubscriberRadioInfo sm)
+        {
+            var smPlacemark = new Placemark()
+            {
+                Name = sm.Name,
+                Id = sm.Name,
+                Geometry = new Point()
+                {
+                    Coordinate = new Vector(
+                                    latitude: (double)sm.Latitude,
+                                    longitude: (double)sm.Longitude)
+                }
+            };
+
+            smPlacemark.Description = new Description()
+            {
+                Text = $"<![CDATA[http://{sm.IP}<br/>MAC: {sm.Esn}<br/><br/>SM Power Level: {sm.SmAPL}<br/>SM Expected Power Level: {sm.SmEPL}<br/><br/>AP Power Level: {sm.ApAPL}<br/>AP Expected Power Level: {sm.ApEPL}]]>"
+            };
+
+            // Apply icon to SM based on Signal Level
+            if (sm.ApAPL <= settings.Icons["Bad"].SignalLevel)
+            {
+                smPlacemark.StyleUrl = new Uri($"#" + nameof(redIcon), UriKind.Relative);
+                smPlacemark.Visibility = settings.Icons["Bad"].Visibility;
+            }
+            else if (sm.ApAPL <= settings.Icons["Poor"].SignalLevel)
+            {
+                smPlacemark.StyleUrl = new Uri($"#" + nameof(yellowIcon), UriKind.Relative);
+                smPlacemark.Visibility = settings.Icons["Poor"].Visibility;
+            }
+            else if (sm.ApAPL <= settings.Icons["Good"].SignalLevel)
+            {
+                smPlacemark.StyleUrl = new Uri($"#" + nameof(greenIcon), UriKind.Relative);
+                smPlacemark.Visibility = settings.Icons["Good"].Visibility;
+            }
+            else
+            {
+                smPlacemark.StyleUrl = new Uri($"#" + nameof(whiteIcon), UriKind.Relative);
+                smPlacemark.Visibility = settings.Icons["Unknown"].Visibility;
+            }
+
+            return smPlacemark;
         }
 
         /// <summary>

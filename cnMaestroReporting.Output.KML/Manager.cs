@@ -78,6 +78,11 @@ namespace cnMaestroReporting.Output.KML
             doc.AddStyle(redIcon);
             doc.AddStyle(towerIcon);
 
+            doc.Description = new Description()
+            {
+                Text = $"<![CDATA[Total Subscribers:{_subscribers.Count()}<br/>Correct Lat/Long: {_subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0).Count()}]]>"
+            };
+
             //TODO: add comments with counts to the tower folder, sector folder, etc.
             IEnumerable<Folder> siteFolders = _towers.Select(generateTower);
 
@@ -108,29 +113,50 @@ namespace cnMaestroReporting.Output.KML
                 };
                 towerPlacemark.Visibility = settings.Icons["Tower"].Visibility;
 
+
+                towerFolder.Description = new Description()
+                {
+                    Text = $"<![CDATA[Total Subscribers:{_subscribers.Where(sm => sm.Location == tower.Key).Count()}<br/>Correct Lat/Long: {_subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.Location == tower.Key).Count()}]]>"
+                };
+
                 // Loop through all the APs for this towers AP
                 foreach (var ap in _accessPoints.Where(ap => ap.Value == tower.Key))
                 {
-                    // Create this sectors folder to hold all subscribers
-                    var sectorFolder = new Folder() { Name = ap.Key };
-
-                    // Fetch all subscribers for this specific sector.
-                    var sectorSubscribers = _subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.APName == ap.Key);
-
-                    // Loop through and create all the placemarks for these sector subscribers.
-                    foreach (var sm in sectorSubscribers)
-                    {
-                        var smPlacemark = generateSmPlacemark(sm);
-                        sectorFolder.AddFeature(smPlacemark);
-
-                    }
-
+                    var sectorFolder = generateSector(ap);
                     towerFolder.AddFeature(sectorFolder);
                 }
 
                 towerFolder.AddFeature(towerPlacemark);
                 return towerFolder;
             }
+        }
+
+        /// <summary>
+        /// passed a sector build a folder containing the sector and all sm's attached to the sector.
+        /// </summary>
+        /// <param name="ap"></param>
+        private Folder generateSector(KeyValuePair<string, string> ap)
+        {
+            // Create this sectors folder to hold all subscribers
+            var sectorFolder = new Folder() { Name = ap.Key };
+
+            // Fetch all subscribers for this specific sector.
+            var sectorSubscribers = _subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.APName == ap.Key);
+
+            // Loop through and create all the placemarks for these sector subscribers.
+            foreach (var sm in sectorSubscribers)
+            {
+                var smPlacemark = generateSmPlacemark(sm);
+                sectorFolder.AddFeature(smPlacemark);
+
+            }
+
+            sectorFolder.Description = new Description()
+            {
+                Text = $"<![CDATA[Total Subscribers:{_subscribers.Where(sm => sm.APName == ap.Key).Count()}<br/>Correct Lat/Long: {sectorSubscribers.Count()}]]>"
+            };
+
+            return sectorFolder;
         }
 
         /// <summary>

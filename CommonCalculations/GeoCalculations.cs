@@ -30,7 +30,7 @@ namespace CommonCalculations
             double cosθ = Math.Cos(θ);
             double sinφ2 = sinφ1 * cosδ + cosφ1 * sinδ * cosθ;
 
-            double φ2 = Math.Asin($sinφ2);
+            double φ2 = Math.Asin(sinφ2);
             double y = sinθ * sinδ * cosφ1;
             double x = cosδ - sinφ1 * sinφ2;
             double λ2 = λ1 + Math.Atan2(y, x);

@@ -4,27 +4,66 @@ namespace cnMaestroReporting.Domain
 {
     public struct SubscriberRadioInfo
     {
+        [KMLConfig(Hidden = true)]
         public string Name { get; set; }
-        public string Esn { get; set; }
-        public string Location { get; set; }
-        public string APName { get; set; }
-        public string ApModel { get; set; }
-        public string Firmware { get; set; }
-        public decimal Latitude { get; set; }
-        public decimal Longitude { get; set; }
+
+        [KMLConfig(ConvertToUrl = true)]
         public string IP { get; set; }
+
+        public string Esn { get; set; }
+
+        [KMLConfig(Hidden = true)]
+        public string Tower { get; set; }
+
+        [KMLConfig(Hidden = true)]
+        public string APName { get; set; }
+
+        [KMLConfig(Hidden = true)]
+        public string ApModel { get; set; }
+
+        public string Firmware { get; set; }
+
+        [KMLConfig(Hidden = true)]
+        public decimal Latitude { get; set; }
+
+        [KMLConfig(Hidden = true)]
+        public decimal Longitude { get; set; }
+
         public int DistanceM { get; set; }
+
         public string Model { get; set; }
+
+        [KMLConfig(Hidden = true)]
         public int SmGain { get; set; }
+
+        [KMLConfig(Hidden = true)]
         public int SmTxPower { get; set; }
+
+        [KMLConfig(Hidden = true)]
         public int SmMaxTxPower { get; set; }
-        public double SmEPL { get; set; }
-        public double SmAPL { get; set; }
+
+        [KMLConfig(Hidden = true)]
         public double SmPowerDiff { get => Math.Round(Math.Abs(SmEPL - SmAPL), 2); }
+
+        [KMLConfig(Name = "SM Imbalance")]
         public double SmImbalance { get; set; }
+
+        [KMLConfig(Hidden = true)]
         public int ApTxPower { get; set; }
+
+        [KMLConfig(Name = "SM Expected Power")]
+        public double SmEPL { get; set; }
+
+        [KMLConfig(Name = "SM Actual Power")]
+        public double SmAPL { get; set; }
+
+        [KMLConfig(Name = "AP Expected Power")]
         public double ApEPL { get; set; }
+
+        [KMLConfig(Name = "AP Actual Power")]
         public double ApAPL { get; set; }
+
+        [KMLConfig(Hidden = true)]
         public double ApPowerDiff { get => Math.Round(Math.Abs(ApEPL - ApAPL), 2); }        
     }
 }

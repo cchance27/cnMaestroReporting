@@ -1,16 +1,16 @@
-﻿using CommonCalculations;
-using System;
-using System.Threading.Tasks;
+﻿using cnMaestroReporting.cnMaestroAPI.cnDataType;
+using cnMaestroReporting.Domain;
+using CommonCalculations;
 using Microsoft.Extensions.Configuration;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
-using cnMaestroReporting.Domain;
-using cnMaestroReporting.cnMaestroAPI.cnDataType;
+using System.Threading.Tasks;
 
 namespace cnMaestroReporting.CLI
 {
-    class Program
+    internal class Program
     {
         private static cnMaestroAPI.Manager cnManager { get; set; } // Our access to cnMaestro
         private static RadioConfig cambiumRadios; // Holds the model configurations we use for various cambium devices.
@@ -19,7 +19,7 @@ namespace cnMaestroReporting.CLI
         private static async Task Main(string[] args)
         {
             generalConfig = FetchConfiguration(); // Load our appSettings into generalConfig
-            
+
             //cnManager sets up generic settings and configuration for the overall connection to cnMaestro (authentication)
             cnManager = new cnMaestroAPI.Manager(generalConfig.GetSection("cnMaestro"));
             await cnManager.ConnectAsync();
@@ -27,73 +27,83 @@ namespace cnMaestroReporting.CLI
             // Initialize our SNMP Controller
             var snmp = new SNMP.Manager(generalConfig.GetSection("snmp"));
 
-            try
-            {
-                // Get all the device info from cnMaestro we will be using for the program loop
-                var towers = await cnManager.Api.GetTowersAsync();
-                var deviceStatTask = cnManager.Api.GetMultipleDevStatsAsync();
-                var deviceTask = cnManager.Api.GetMultipleDevicesAsync();
-                Task.WaitAll(deviceTask, deviceStatTask);
+            // Get all the device info from cnMaestro we will be using for the program loop
+            var towers = await cnManager.Api.GetTowersAsync();
+            var deviceStatTask = cnManager.Api.GetMultipleDevStatsAsync();
+            var deviceTask = cnManager.Api.GetMultipleDevicesAsync();
+            Task.WaitAll(deviceTask, deviceStatTask);
 
-                var devices = deviceTask.Result
-                    .Where(dev => dev.status == "online")
-                    .ToDictionary(dev => dev.mac); // All devices by mac key
+            //Dictionary of all Devices so we can lookup by mac address
+            var devices = deviceTask.Result
+                .Where(dev => dev.status == "online")
+                .ToDictionary(dev => dev.mac);
 
-                var apStats = deviceStatTask.Result
-                    .Where(dev => dev.mode == "ap" && dev.status == "online")
-                    .ToDictionary(ap => ap.mac);   // All statistics by mac key 
-                
-                var smIPs = deviceStatTask.Result
-                    .Where(dev => dev.mode == "sm" && dev.status == "online")
-                    .Select(dev => devices[dev.mac].ip).ToArray(); // Array of SM IPs to poll
+            // Stringly typed dictionary of all accessPoints
+            var apInfo = deviceStatTask.Result
+                .Where(dev => dev.mode == "ap" && dev.status == "online")
+                .ToDictionary(ap => ap.mac, ap => new AccessPointRadioInfo()
+                {
+                    Name = ap.name,
+                    Esn = ap.mac,
+                    IP = devices[ap.mac].ip,
+                    ConnectedSMs = ap.connected_sms,
+                    Lan = ap.lan_status,
+                    Channel = Double.Parse(ap.radio.frequency),
+                    ColorCode = Byte.Parse(ap.radio.color_code),
+                    SyncState = ap.radio.sync_state,
+                    TxPower = ap.radio.tx_power ?? 0,
+                    Tower = ap.tower,
+                    Azimuth = 0,
+                    Uptime = TimeSpan.FromSeconds(Double.Parse(ap.status_time))
+                });
 
-                // Async fetch all the SNMP From devices and return us a Dictionary<ipAddressStr, Dictionary<OIDstr, ValueStr>>
-                var snmpResults = await snmp.GetMultipleDeviceOidsAsync(smIPs, SNMP.OIDs.smAirDelayNs, SNMP.OIDs.smFrequencyHz);
+            // List of online SM's that we will poll for their information
+            var smIPs = deviceStatTask.Result
+                .Where(dev => dev.mode == "sm" && dev.status == "online")
+                .Select(dev => devices[dev.mac].ip).ToArray(); // Array of SM IPs to poll
 
-                // Nice select that returns all of our generated SM Info.
-                IEnumerable<SubscriberRadioInfo> finalSubResults = deviceStatTask.Result
-                    .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResults.Keys.Contains(devices[dev.mac].ip))
-                    .Select((smStat) => GenerateSmRadioInfo(
-                        apDevice: devices[smStat.ap_mac],
-                        apStats: apStats[smStat.ap_mac],
-                        smDevice: devices[smStat.mac],
-                        smStats: smStat,
-                        smSnmp: snmpResults[devices[smStat.mac].ip]));
+            // Async fetch all the SNMP From devices and return us a Dictionary<ipAddressStr, Dictionary<OIDstr, ValueStr>>
+            var snmpResults = await snmp.GetMultipleDeviceOidsAsync(smIPs, SNMP.OIDs.smAirDelayNs, SNMP.OIDs.smFrequencyHz); //, SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
 
-                // Export to XLSX
-                var outputXLSX = new Output.XLSX.Manager(generalConfig.GetSection("outputs:xlsx"));
-                outputXLSX.Generate(finalSubResults.ToList());
-                outputXLSX.Save();
+            // Nice select that returns all of our generated SM Info.
+            IEnumerable<SubscriberRadioInfo> finalSubResults = deviceStatTask.Result
+                .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResults.Keys.Contains(devices[dev.mac].ip))
+                .Select((smStat) => GenerateSmRadioInfo(
+                    apDevice: devices[smStat.ap_mac],
+                    apInfo: apInfo[smStat.ap_mac],
+                    smDevice: devices[smStat.mac],
+                    smStats: smStat,
+                    smSnmp: snmpResults[devices[smStat.mac].ip]));
 
-                // Export to KMZ
-                var outputKML = new Output.KML.Manager(generalConfig.GetSection("outputs:kml"), 
-                    finalSubResults.ToList(), 
-                    towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)), 
-                    apStats.Select(apStat => new KeyValuePair<string, string>(apStat.Value.name, apStat.Value.tower))
-                    );
-                outputKML.GenerateKML();
-                outputKML.Save();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-            }
+            // Export to XLSX
+            var outputXLSX = new Output.XLSX.Manager(generalConfig.GetSection("outputs:xlsx"));
+            outputXLSX.Generate(finalSubResults.ToList());
+            outputXLSX.Save();
+
+            // Export to KMZ
+            var outputKML = new Output.KML.Manager(generalConfig.GetSection("outputs:kml"),
+                finalSubResults.ToList(),
+                towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)),
+                apInfo.Values.ToList()
+                );
+            outputKML.GenerateKML();
+            outputKML.Save();
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadLine();
         }
 
         /// <summary>
-        /// Generate our unified SM View based on the AP & SM Device and Statistics from cnMaestro, 
+        /// Generate our unified SM View based on the AP & SM Device and Statistics from cnMaestro,
         /// as well as snmp we had to pull direct, and return a clean object.
         /// </summary>
         /// <param name="apDevice"></param>
-        /// <param name="apStats"></param>
+        /// <param name="apInfo"></param>
         /// <param name="smDevice"></param>
         /// <param name="smStats"></param>
         /// <param name="smSnmp"></param>
         /// <returns></returns>
-        public static SubscriberRadioInfo GenerateSmRadioInfo(CnDevice apDevice, CnStatistics apStats, CnDevice smDevice, CnStatistics smStats, IDictionary<string, string> smSnmp)
+        public static SubscriberRadioInfo GenerateSmRadioInfo(CnDevice apDevice, AccessPointRadioInfo apInfo, CnDevice smDevice, CnStatistics smStats, IDictionary<string, string> smSnmp)
         {
             Double.TryParse(smSnmp[SNMP.OIDs.smFrequencyHz], out double smFrequencyHz);
             Int32.TryParse(smSnmp[SNMP.OIDs.smAirDelayNs], out int smAirDelayNs);
@@ -106,7 +116,7 @@ namespace cnMaestroReporting.CLI
                 smGain = cambiumRadios.SM[smDevice.product].AntennaGain;
 
             // Odd irregularity where cnMaestro sends a -30 let's assume max Tx since it's obviously transmitting as we have a SM to calculate on the panel.
-            var apTx = apStats.radio.tx_power ?? cambiumRadios.AP[apDevice.product].MaxTransmit;
+            var apTx = apInfo.TxPower;
             if (apTx < 0)
                 apTx = cambiumRadios.AP[apDevice.product].MaxTransmit;
 
@@ -132,7 +142,7 @@ namespace cnMaestroReporting.CLI
             {
                 Name = smDevice.name,
                 Esn = smDevice.mac,
-                Location = apDevice.tower,
+                Tower = apDevice.tower,
                 Firmware = smDevice.software_version,
                 Latitude = smDevice.location.coordinates[1],
                 Longitude = smDevice.location.coordinates[0],
@@ -149,12 +159,12 @@ namespace cnMaestroReporting.CLI
                 ApAPL = smStats.radio.ul_rssi ?? -1,
                 ApTxPower = apTx,
                 SmTxPower = smStats.radio.tx_power ?? cambiumRadios.SM[smDevice.product].MaxTransmit,
-                SmMaxTxPower = cambiumRadios.SM[smDevice.product].MaxTransmit, 
+                SmMaxTxPower = cambiumRadios.SM[smDevice.product].MaxTransmit,
             };
         }
 
         /// <summary>
-        /// Opens the configuration JSON's for the access methods (cnMaestro and SNMP), 
+        /// Opens the configuration JSON's for the access methods (cnMaestro and SNMP),
         /// as well as loading the various radiotypes from JSON
         /// </summary>
         private static IConfigurationRoot FetchConfiguration()
@@ -165,7 +175,7 @@ namespace cnMaestroReporting.CLI
                 .AddJsonFile("radiotypes.json", optional: false, reloadOnChange: false);
 
             IConfigurationRoot configuration = builder.Build();
-            
+
             // Setup config for the main eventloop
             cambiumRadios = configuration.Get<RadioConfig>();
 

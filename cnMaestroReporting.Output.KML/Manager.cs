@@ -8,6 +8,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Text;
+using TimeSpan = System.TimeSpan;
 
 namespace cnMaestroReporting.Output.KML
 {
@@ -23,13 +26,13 @@ namespace cnMaestroReporting.Output.KML
 
         private IEnumerable<SubscriberRadioInfo> _subscribers { get; }
         private IEnumerable<KeyValuePair<string, CnLocation>> _towers { get; }
-        private IEnumerable<KeyValuePair<string, string>> _accessPoints { get; }
+        private IEnumerable<AccessPointRadioInfo> _accessPoints { get; }
 
         public Manager(
             IConfigurationSection configSection, 
             IEnumerable<SubscriberRadioInfo> subscribers, 
             IEnumerable<KeyValuePair<string, CnLocation>> towers, 
-            IEnumerable<KeyValuePair<string, string>> accesspoints)
+            IEnumerable<AccessPointRadioInfo> accesspoints)
         {
             // Bind our configuration
             configSection.Bind(settings);
@@ -45,7 +48,7 @@ namespace cnMaestroReporting.Output.KML
 
             _subscribers = subscribers.OrderBy(sm => sm.Name);
             _towers = towers.OrderBy(tower => tower.Key);
-            _accessPoints = accesspoints.OrderBy(ap => ap.Key);
+            _accessPoints = accesspoints.OrderBy(ap => ap.Name); // Name sorted dictionary.
         }
 
         private Style CreateIconStyle(string name, StyleConfig config)
@@ -116,11 +119,11 @@ namespace cnMaestroReporting.Output.KML
 
                 towerFolder.Description = new Description()
                 {
-                    Text = $"<![CDATA[Total Subscribers:{_subscribers.Where(sm => sm.Location == tower.Key).Count()}<br/>Correct Lat/Long: {_subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.Location == tower.Key).Count()}]]>"
+                    Text = $"<![CDATA[Total Subscribers:{_subscribers.Where(sm => sm.Tower == tower.Key).Count()}<br/>Correct Lat/Long Subs: {_subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.Tower == tower.Key).Count()}]]>"
                 };
 
                 // Loop through all the APs for this towers AP
-                foreach (var ap in _accessPoints.Where(ap => ap.Value == tower.Key))
+                foreach (var ap in _accessPoints.Where(ap => ap.Tower == tower.Key))
                 {
                     var sectorFolder = generateSector(ap);
                     towerFolder.AddFeature(sectorFolder);
@@ -135,26 +138,22 @@ namespace cnMaestroReporting.Output.KML
         /// passed a sector build a folder containing the sector and all sm's attached to the sector.
         /// </summary>
         /// <param name="ap"></param>
-        private Folder generateSector(KeyValuePair<string, string> ap)
+        private Folder generateSector(AccessPointRadioInfo ap)
         {
             // Create this sectors folder to hold all subscribers
-            var sectorFolder = new Folder() { Name = ap.Key };
+            var sectorFolder = new Folder() { Name = ap.Name };
 
             // Fetch all subscribers for this specific sector.
-            var sectorSubscribers = _subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.APName == ap.Key);
+            var sectorSubscribers = _subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.APName == ap.Name);
+
+            sectorFolder.Description = CreateDescriptionFromObject(ap);
 
             // Loop through and create all the placemarks for these sector subscribers.
             foreach (var sm in sectorSubscribers)
             {
                 var smPlacemark = generateSmPlacemark(sm);
                 sectorFolder.AddFeature(smPlacemark);
-
             }
-
-            sectorFolder.Description = new Description()
-            {
-                Text = $"<![CDATA[Total Subscribers:{_subscribers.Where(sm => sm.APName == ap.Key).Count()}<br/>Correct Lat/Long: {sectorSubscribers.Count()}]]>"
-            };
 
             return sectorFolder;
         }
@@ -177,10 +176,8 @@ namespace cnMaestroReporting.Output.KML
                 }
             };
 
-            smPlacemark.Description = new Description()
-            {
-                Text = $"<![CDATA[http://{sm.IP}<br/>MAC: {sm.Esn}<br/><br/>SM Power Level: {sm.SmAPL}<br/>SM Expected Power Level: {sm.SmEPL}<br/><br/>AP Power Level: {sm.ApAPL}<br/>AP Expected Power Level: {sm.ApEPL}]]>"
-            };
+
+            smPlacemark.Description = CreateDescriptionFromObject(sm);
 
             // Apply icon to SM based on Signal Level
             if (sm.ApAPL <= settings.Icons["Bad"].SignalLevel)
@@ -205,6 +202,58 @@ namespace cnMaestroReporting.Output.KML
             }
 
             return smPlacemark;
+        }
+
+        /// <summary>
+        /// Create a well formatted CData Object Description to be used on an item in our KML this uses reflection and the KMLConfig attribute to manipulate data to display nicely.
+        /// </summary>
+        /// <param name="inputObject"></param>
+        /// <returns></returns>
+        Description CreateDescriptionFromObject(Object inputObject)
+        {
+            var content = new StringBuilder();
+            foreach (PropertyInfo item in inputObject.GetType().GetProperties())
+            {
+                var currentItemValue = item.GetValue(inputObject);
+                var currentName = item.Name;
+                var hidden = false;
+
+                if (currentItemValue != null)
+                {
+                    if (item.GetType() == typeof(TimeSpan))
+                        currentItemValue = FormatTimeSpan((TimeSpan)currentItemValue);
+
+                    // Implement our KMLConfig Options for the object
+                    var kmlConf = item.GetCustomAttribute<KMLConfig>();
+                    if (kmlConf != null)
+                    {
+                        if (kmlConf.Hidden)
+                            hidden = true;
+
+                        if (string.IsNullOrWhiteSpace(kmlConf.Name) == false)
+                            currentName = kmlConf.Name;
+
+                        if (kmlConf.ConvertToUrl)
+                            currentItemValue = "http://" + currentItemValue;
+
+                        if (string.IsNullOrWhiteSpace(kmlConf.TrimAfter) == false)
+                            currentItemValue = FormatTrimAfter((string)currentItemValue, kmlConf.TrimAfter);
+                    }
+
+                    if (!hidden)
+                        content.Append($"<b>{currentName}</b>: { currentItemValue }<br />");
+                }
+            }
+
+            return new Description() { Text = $"<![CDATA[{content.ToString()}]]>" };
+        }
+
+        string FormatTrimAfter(string value, string trimString) => value.Contains(trimString) ? value.Substring(0, value.IndexOf(trimString)).Trim() : value;
+
+        string FormatTimeSpan(System.TimeSpan timeSpan)
+        {
+            string FormatPart(int quantity, string name) => quantity > 0 ? $"{quantity}{name}{(quantity > 1 ? "s" : "")}" : null;
+            return string.Join(", ", new[] { FormatPart(timeSpan.Days, "d"), FormatPart(timeSpan.Hours, "hr"), FormatPart(timeSpan.Minutes, "m") }.Where(x => x != null));
         }
 
         /// <summary>

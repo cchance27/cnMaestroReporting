@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace cnMaestroReporting.CLI
@@ -38,42 +39,62 @@ namespace cnMaestroReporting.CLI
                 .Where(dev => dev.status == "online")
                 .ToDictionary(dev => dev.mac);
 
-            // Stringly typed dictionary of all accessPoints
-            var apInfo = deviceStatTask.Result
-                .Where(dev => dev.mode == "ap" && dev.status == "online")
-                .ToDictionary(ap => ap.mac, ap => new AccessPointRadioInfo()
-                {
-                    Name = ap.name,
-                    Esn = ap.mac,
-                    IP = devices[ap.mac].ip,
-                    ConnectedSMs = ap.connected_sms,
-                    Lan = ap.lan_status,
-                    Channel = Double.Parse(ap.radio.frequency),
-                    ColorCode = Byte.Parse(ap.radio.color_code),
-                    SyncState = ap.radio.sync_state,
-                    TxPower = ap.radio.tx_power ?? 0,
-                    Tower = ap.tower,
-                    Azimuth = 0,
-                    Uptime = TimeSpan.FromSeconds(Double.Parse(ap.status_time))
-                });
-
             // List of online SM's that we will poll for their information
             var smIPs = deviceStatTask.Result
                 .Where(dev => dev.mode == "sm" && dev.status == "online")
-                .Select(dev => devices[dev.mac].ip).ToArray(); // Array of SM IPs to poll
+                .Select(dev => devices[dev.mac].ip).ToArray();
+
+            var apIPs = deviceStatTask.Result
+                .Where(dev => dev.mode == "ap" && dev.status == "online")
+                .Select(dev => devices[dev.mac].ip).ToArray();
 
             // Async fetch all the SNMP From devices and return us a Dictionary<ipAddressStr, Dictionary<OIDstr, ValueStr>>
-            var snmpResults = await snmp.GetMultipleDeviceOidsAsync(smIPs, SNMP.OIDs.smAirDelayNs, SNMP.OIDs.smFrequencyHz); //, SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
+            var snmpResultsSMTask = snmp.GetMultipleDeviceOidsAsync(smIPs, SNMP.OIDs.smAirDelayNs, SNMP.OIDs.smFrequencyHz); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
+            var snmpResultsAPTask = snmp.GetMultipleDeviceOidsAsync(apIPs, SNMP.OIDs.sysContact); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
+
+            Task.WaitAll(snmpResultsSMTask, snmpResultsAPTask);
+
+            // Stringly typed dictionary of all accessPoints
+            var apInfo = deviceStatTask.Result
+                .Where(dev => dev.mode == "ap" && dev.status == "online")
+                .ToDictionary(ap => ap.mac, ap => {
+                    var apRI = new AccessPointRadioInfo()
+                    {
+                        Name = ap.name,
+                        Esn = ap.mac,
+                        IP = devices[ap.mac].ip,
+                        ConnectedSMs = ap.connected_sms,
+                        Lan = ap.lan_status,
+                        Channel = Double.Parse(ap.radio.frequency),
+                        ColorCode = Byte.Parse(ap.radio.color_code),
+                        SyncState = ap.radio.sync_state,
+                        TxPower = ap.radio.tx_power ?? 0,
+                        Tower = ap.tower,
+                        Azimuth = 0,
+                        Downtilt = 0,
+                        Uptime = TimeSpan.FromSeconds(Double.Parse(ap.status_time))
+                    };
+
+                    // Parse the sysContact into Azimuth and Downtilt
+                    var azdtMatch = Regex.Match(snmpResultsAPTask.Result[apRI.IP][SNMP.OIDs.sysContact], @"\[(?<azimuth>\d*)AZ\s(?<downtilt>\d*)DT\]");
+                    if (azdtMatch.Success)
+                    {
+                        apRI.Azimuth = Int32.Parse(azdtMatch.Groups["azimuth"].ToString());
+                        apRI.Downtilt = Int32.Parse(azdtMatch.Groups["downtilt"].ToString());
+                    }
+
+                    return apRI;
+                    });
 
             // Nice select that returns all of our generated SM Info.
             IEnumerable<SubscriberRadioInfo> finalSubResults = deviceStatTask.Result
-                .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResults.Keys.Contains(devices[dev.mac].ip))
+                .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResultsSMTask.Result.Keys.Contains(devices[dev.mac].ip))
                 .Select((smStat) => GenerateSmRadioInfo(
                     apDevice: devices[smStat.ap_mac],
                     apInfo: apInfo[smStat.ap_mac],
                     smDevice: devices[smStat.mac],
                     smStats: smStat,
-                    smSnmp: snmpResults[devices[smStat.mac].ip]));
+                    smSnmp: snmpResultsSMTask.Result[devices[smStat.mac].ip]));
 
             // Export to XLSX
             var outputXLSX = new Output.XLSX.Manager(generalConfig.GetSection("outputs:xlsx"));

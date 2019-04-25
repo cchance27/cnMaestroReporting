@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\cnMaestroReporting.cnMaestroAPI\cnMaestroReporting.cnMaestroAPI.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj" />
+    <ProjectReference Include="..\CommonCalculations\CommonCalculations.csproj" />
   </ItemGroup>
 
 </Project>

@@ -4,23 +4,22 @@ using System.Text;
 
 namespace CommonCalculations
 {
-    static class GeoCalc
+    public static class GeoCalc
     {
         private static int earthRadius = 6371000;
 
-        public struct Location
+        public static (double latitude, double longitude) LocationFromAzimuth(double latitude, double longitude, double distance, double azimuth)
         {
-            public double Latitude;
-            public double Longitude;
-        }
+            if (azimuth < 0)
+            {
+                azimuth = 360 - azimuth;
+            }
 
-        public static Location LocationFromAzimuth(Location p1, double distance, double azimuth)
-        {
             // Adopted from wikipedia.
             double δ = distance / earthRadius;
             double θ = azimuth * Math.PI / 180;
-            double φ1 = p1.Latitude * Math.PI / 180;
-            double λ1 = p1.Longitude * Math.PI / 180;
+            double φ1 = latitude * Math.PI / 180;
+            double λ1 = longitude * Math.PI / 180;
 
             double sinφ1 = Math.Sin(φ1);
             double cosφ1 = Math.Cos(φ1);
@@ -35,19 +34,16 @@ namespace CommonCalculations
             double x = cosδ - sinφ1 * sinφ2;
             double λ2 = λ1 + Math.Atan2(y, x);
 
-            return new Location() {
-                Latitude = φ2 * 180 / Math.PI,
-                Longitude = ((λ2 * 180 / Math.PI) + 540) % 360 - 180
-            };
+            return (latitude: φ2 * 180 / Math.PI, longitude: ((λ2 * 180 / Math.PI) + 540) % 360 - 180);
         }
 
-        public static double GeoDistance(Location p1, Location p2)
+        public static double GeoDistance(double latitude1, double longitude1, double latitude2, double longitude2)
         {
             // From the OdataSamples: https://csharp.hotexamples.com/examples/Microsoft.Spatial/GeographyPoint/-/php-geographypoint-class-examples.html
-            var lat1 = Math.PI * p1.Latitude / 180;
-            var lat2 = Math.PI * p2.Latitude / 180;
-            var lon1 = Math.PI * p1.Longitude / 180;
-            var lon2 = Math.PI * p2.Longitude / 180;
+            var lat1 = Math.PI * latitude1 / 180;
+            var lat2 = Math.PI * latitude2 / 180;
+            var lon1 = Math.PI * longitude1 / 180;
+            var lon2 = Math.PI * longitude2 / 180;
             var item1 = Math.Sin((lat1 - lat2) / 2) * Math.Sin((lat1 - lat2) / 2);
             var item2 = Math.Cos(lat1) * Math.Cos(lat2) * Math.Sin((lon1 - lon2) / 2) * Math.Sin((lon1 - lon2) / 2);
             return Math.Asin(Math.Sqrt(item1 + item2));

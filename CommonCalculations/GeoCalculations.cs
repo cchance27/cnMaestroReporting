@@ -36,17 +36,20 @@ namespace CommonCalculations
 
             return (latitude: φ2 * 180 / Math.PI, longitude: ((λ2 * 180 / Math.PI) + 540) % 360 - 180);
         }
-
+        
         public static double GeoDistance(double latitude1, double longitude1, double latitude2, double longitude2)
         {
-            // From the OdataSamples: https://csharp.hotexamples.com/examples/Microsoft.Spatial/GeographyPoint/-/php-geographypoint-class-examples.html
-            var lat1 = Math.PI * latitude1 / 180;
-            var lat2 = Math.PI * latitude2 / 180;
-            var lon1 = Math.PI * longitude1 / 180;
-            var lon2 = Math.PI * longitude2 / 180;
-            var item1 = Math.Sin((lat1 - lat2) / 2) * Math.Sin((lat1 - lat2) / 2);
-            var item2 = Math.Cos(lat1) * Math.Cos(lat2) * Math.Sin((lon1 - lon2) / 2) * Math.Sin((lon1 - lon2) / 2);
-            return Math.Asin(Math.Sqrt(item1 + item2));
+            var φ1 = latitude1 * Math.PI / 180;
+            var φ2 = latitude2 * Math.PI / 180;
+            var Δφ = (latitude2 - latitude1) * Math.PI / 180;
+            var Δλ = (longitude2 - longitude1) * Math.PI / 180;
+
+            var a = Math.Sin(Δφ / 2) * Math.Sin(Δφ / 2) +
+                    Math.Cos(φ1) * Math.Cos(φ2) *
+                    Math.Sin(Δλ / 2) * Math.Sin(Δλ / 2);
+            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+            return earthRadius * c;
         }
     }
 }

@@ -79,8 +79,11 @@ namespace cnMaestroReporting.CLI
                     var azdtMatch = Regex.Match(snmpResultsAPTask.Result[apRI.IP][SNMP.OIDs.sysContact], @"\[(?<azimuth>\d*)AZ\s(?<downtilt>\d*)DT\]");
                     if (azdtMatch.Success)
                     {
-                        apRI.Azimuth = Int32.Parse(azdtMatch.Groups["azimuth"].ToString());
-                        apRI.Downtilt = Int32.Parse(azdtMatch.Groups["downtilt"].ToString());
+                        // If we can parse the azimuth and downtilt save it to the AP if we can't set it to an invalid value so we know it wasn't good (0 would be a valid value so would -1)
+                        var goodAzimuth = Int32.TryParse(azdtMatch.Groups["azimuth"].ToString(), out int azimuth);
+                        var goodDowntilt = Int32.TryParse(azdtMatch.Groups["downtilt"].ToString(), out int downtilt);
+                        apRI.Azimuth = goodAzimuth ? azimuth : 999;
+                        apRI.Downtilt = goodDowntilt ? downtilt : 999;
                     }
 
                     return apRI;

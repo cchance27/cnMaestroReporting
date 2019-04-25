@@ -162,21 +162,30 @@ namespace cnMaestroReporting.Output.KML
 
             sectorFolder.Description = CreateDescriptionFromObject(ap);
             
+            
             // Loop through and create all the placemarks for these sector subscribers.
             foreach (var sm in sectorSubscribers)
             {
-                var smPlacemark = generateSmPlacemark(sm);
-                if (smPlacemark.Visibility == true)
-                    showSector = true;
+                // Check if the sm coordinates are realistic (within our configured range of the sector)
+                var MapDistance = GeoCalc.GeoDistance((double)sm.Latitude, (double)sm.Longitude, (double)location.coordinates[1], (double)location.coordinates[0]);
+                if (MapDistance <= settings.MaxSMDistance)
+                {
+                    var smPlacemark = generateSmPlacemark(sm);
+                    if (smPlacemark.Visibility == true)
+                        showSector = true;
 
-                sectorFolder.AddFeature(smPlacemark);
+                    sectorFolder.AddFeature(smPlacemark);
+                }
             }
 
-            // Generate the plot to show the coverage based on the sectors azimuth and distance
-            var sectorPlot = generateSectorPlot((double)location.coordinates[1], (double)location.coordinates[0], ap.Azimuth, 500, 90);
-            var plotPlacemark = new Placemark() { Name = ap.Name + " Coverage", Geometry = sectorPlot, StyleUrl = new Uri($"#" + nameof(plotStyle), UriKind.Relative) };
-            plotPlacemark.Visibility = showSector;
-            sectorFolder.AddFeature(plotPlacemark);
+            if (ap.Azimuth != 999)
+            {
+                // Generate the plot to show the coverage based on the sectors azimuth and distance
+                var sectorPlot = generateSectorPlot((double)location.coordinates[1], (double)location.coordinates[0], ap.Azimuth, 500, 90);
+                var plotPlacemark = new Placemark() { Name = ap.Name + " Coverage", Geometry = sectorPlot, StyleUrl = new Uri($"#" + nameof(plotStyle), UriKind.Relative) };
+                plotPlacemark.Visibility = showSector;
+                sectorFolder.AddFeature(plotPlacemark);
+            }
 
             return sectorFolder;
         }

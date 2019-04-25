@@ -136,12 +136,12 @@ namespace cnMaestroReporting.CLI
 
             // If we have smGain from cnMaestro let's use it if not fall back to our configured value.
             Int32.TryParse(smStats.gain, out int smGain);
-            if (smGain == 0)
+            if (smGain <= 0)
                 smGain = cambiumRadios.SM[smDevice.product].AntennaGain;
 
             // Odd irregularity where cnMaestro sends a -30 let's assume max Tx since it's obviously transmitting as we have a SM to calculate on the panel.
             var apTx = apInfo.TxPower;
-            if (apTx < 0)
+            if (apTx <= 0)
                 apTx = cambiumRadios.AP[apDevice.product].MaxTransmit;
 
             // smEPL === The power transmitted from the AP and what we expect to see on the SM

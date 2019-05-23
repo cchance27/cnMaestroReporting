@@ -90,28 +90,35 @@ namespace cnMaestroReporting.CLI
                     });
 
             // Nice select that returns all of our generated SM Info.
-            IEnumerable<SubscriberRadioInfo> finalSubResults = deviceStatTask.Result
+            List<SubscriberRadioInfo> finalSubResults = deviceStatTask.Result
                 .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResultsSMTask.Result.Keys.Contains(devices[dev.mac].ip))
                 .Select((smStat) => GenerateSmRadioInfo(
                     apDevice: devices[smStat.ap_mac],
                     apInfo: apInfo[smStat.ap_mac],
                     smDevice: devices[smStat.mac],
                     smStats: smStat,
-                    smSnmp: snmpResultsSMTask.Result[devices[smStat.mac].ip]));
+                    smSnmp: snmpResultsSMTask.Result[devices[smStat.mac].ip])).ToList();
 
             // Export to XLSX
             var outputXLSX = new Output.XLSX.Manager(generalConfig.GetSection("outputs:xlsx"));
-            outputXLSX.Generate(finalSubResults.ToList());
+            outputXLSX.Generate(finalSubResults);
             outputXLSX.Save();
 
             // Export to KMZ
             var outputKML = new Output.KML.Manager(generalConfig.GetSection("outputs:kml"),
-                finalSubResults.ToList(),
+                finalSubResults,
                 towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)),
                 apInfo.Values.ToList()
                 );
             outputKML.GenerateKML();
             outputKML.Save();
+
+            var outputPTPPRJ = new Output.PTPPRJ.Manager(generalConfig.GetSection("outputs:ptpprj"),
+                finalSubResults,
+                towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)),
+                apInfo.Values.ToList());
+
+            outputPTPPRJ.Generate();
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadLine();

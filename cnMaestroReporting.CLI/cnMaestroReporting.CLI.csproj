@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\cnMaestroReporting.Output.KML\cnMaestroReporting.Output.KML.csproj" />
+    <ProjectReference Include="..\cnMaestroReporting.Output.PTPPRJ\cnMaestroReporting.Output.PTPPRJ.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.SNMP\cnMaestroReporting.SNMP.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Output.XLSX\cnMaestroReporting.Output.XLSX.csproj" />

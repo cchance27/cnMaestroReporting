@@ -17,6 +17,8 @@ namespace cnMaestroReporting.Output.PTPPRJ
         private IList<SubscriberRadioInfo> _subscribers { get; }
         private IList<KeyValuePair<string, CnLocation>> _towers { get; }
         private IList<AccessPointRadioInfo> _accessPoints { get; }
+        private XElement _project { get; set; }
+        private string _fileName { get; }
 
         public Manager(
          IConfigurationSection configSection,
@@ -26,6 +28,12 @@ namespace cnMaestroReporting.Output.PTPPRJ
         {
             // Bind our configuration
             configSection.Bind(_settings);
+
+            // If we have a filename use it if not generate a dated filename.
+            if (String.IsNullOrWhiteSpace(_settings.FileName))
+                _fileName = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Link Planner.ptpprj";
+            else
+                _fileName = _settings.FileName;
 
             // Drop subscribers with no latitude/longitude or that we were told are beyond our SM filter distance (assumed invalid)
             _subscribers = subscribers.Where(
@@ -39,30 +47,17 @@ namespace cnMaestroReporting.Output.PTPPRJ
             _accessPoints = accesspoints.OrderBy(ap => ap.Name).ToList(); // Name sorted dictionary.
         }
 
+        /// <summary>
+        /// Generate the XML for the Basic PTPPRJ
+        /// </summary>
         public void Generate()
         {
-            XDocument doc = new XDocument(new XDeclaration("1.0", "UTF-8", null));
-            XElement LinkPlanner = new XElement("LinkPlanner");
-            LinkPlanner.SetAttributeValue("file_version", "2.0");
-            LinkPlanner.SetAttributeValue("app_version", "4.9.1");
+            // Base Project element for storing all project settings.
+            _project = new XElement("Project");
+            _project.SetAttributeValue("model", "MODEL_ITU");
+            _project.SetAttributeValue("default_subscriber_height", _settings.SmHeight.ToString());
 
-            XElement MetaData = new XElement("MetaData", "File created with cnMaestroReporting Tool on " + DateTime.Now.ToString());
-            LinkPlanner.Add(MetaData);
-
-            XElement Project = new XElement("Project");
-            Project.SetAttributeValue("model", "MODEL_ITU");
-            Project.SetAttributeValue("default_subscriber_height", _settings.SmHeight.ToString());
-
-            XElement TddSyncGroups = new XElement("TddSyncGroups");
-            XElement TddSyncGroup = new XElement("TddSyncGroup");
-            TddSyncGroup.SetAttributeValue("frame_duration", "0");
-            TddSyncGroup.SetAttributeValue("max_burst_duration", "0");
-            TddSyncGroup.SetAttributeValue("v2", "1");
-            TddSyncGroups.Add(TddSyncGroup);
-            Project.Add(TddSyncGroups);
-
-            // Generate and add Rules to project
-            // We create a single rule for the generic rule and pmp rules since they were the same in a basic project 
+            // Rule used by the Link and PMP for performance issues
             var RuleAttribs = new RuleAttributeSet
             {
                 name = "Does not meet requirements",
@@ -88,10 +83,9 @@ namespace cnMaestroReporting.Output.PTPPRJ
                         }
                     }
             };
-            Project.Add(CreateXMLRules("Rules", RuleAttribs));
-            Project.Add(CreateXMLRules("PMPRules", RuleAttribs));
-            // Create the rule for AP warnings
-            Project.Add(CreateXMLRules("APRule", new RuleAttributeSet
+
+            // Rule used for the AP if it has warnings
+            var APRuleAttribs = new RuleAttributeSet
             {
                 name = "Has warnings",
                 format = "1",
@@ -115,72 +109,80 @@ namespace cnMaestroReporting.Output.PTPPRJ
                             }
                         }
                     }
-            }));
+            };
 
-            XElement BestServer = new XElement("BestServer");
-
-            XElement SubscriberVariant = new XElement("SubscriberVariant");
-            SubscriberVariant.SetAttributeValue("fade_margin", "0");
-            SubscriberVariant.SetAttributeValue("mod_mode", "pmp450_qpsk_mimo_a");
-            SubscriberVariant.SetAttributeValue("antenna_height", "10");
-            SubscriberVariant.SetAttributeValue("family", "PMP-450");
-            BestServer.Add(SubscriberVariant);
-            Project.Add(BestServer);
+            // Create XML TddSyncGroups 
+            XElement TddSyncGroups = new XElement("TddSyncGroups", CreateXMLTddGroup(0, 0, true));
+            
+            // Setup best server settings (not 100% sure on these but this is default)
+            XElement BestServer = new XElement("BestServer", CreateXMLSubVariant(0, "pmp450_qpsk_mimo_a", 10, "PMP-450"));
 
             // Create XML Entries for all known Towers
-            XElement Places = new XElement("Places");
-            foreach (KeyValuePair<string, CnLocation> tower in _towers)
-            {
-                Places.Add(CreateXMLTowerPlaces(tower));
-            }
-            Project.Add(Places);
+            XElement Towers = new XElement("Places", _towers.Select(tower => CreateXMLTowerPlaces(tower)));
 
             // Create XML Entries for all known Subscribers
-            XElement SubscriberPlaces = new XElement("SubscriberPlaces");
-            foreach (SubscriberRadioInfo sm in _subscribers)
-            {
-                SubscriberPlaces.Add(CreateXMLSubscriberPlaces(sm));
-            }
-            Project.Add(SubscriberPlaces);
+            XElement SubscriberPlaces = new XElement("SubscriberPlaces", _subscribers.Select(sm => CreateXMLSubscriberPlaces(sm)));
 
             // Create XML Hubs for all 
-            XElement Hubs = new XElement("Hubs");
-            foreach (var tower in _towers)
-            {
-                Hubs.Add(CreateXMLHub(tower));
-            }
-            Project.Add(Hubs);
+            XElement Hubs = new XElement("Hubs", _towers.Select(tower => CreateXMLHub(tower)));
 
-            XElement UI = new XElement("UI");
+            // Add elements to project
+            _project.Add(
+                TddSyncGroups,
+                CreateXMLRules("Rules", RuleAttribs),
+                CreateXMLRules("PMPRules", RuleAttribs), 
+                CreateXMLRules("APRule", APRuleAttribs),
+                BestServer,
+                Towers,
+                SubscriberPlaces,
+                Hubs);
+
+        }
+
+        /// <summary>
+        /// Save the PTPPRJ to a File
+        /// </summary>
+        public void Save()
+        {
+            // Create base LinkPlanner Object
+            XElement LinkPlanner = new XElement("LinkPlanner");
+            LinkPlanner.SetAttributeValue("file_version", "2.0");
+            LinkPlanner.SetAttributeValue("app_version", "4.9.1");
+            
+            // Required UI Elements for PTPPRJ
             XElement Tree = new XElement("Tree");
             Tree.SetAttributeValue("state", "[[0]]");
-            UI.Add(Tree);
-
-            XElement SaveLog = new XElement("SaveLog");
+            
+            // Save information for the file.
             XElement Save = new XElement("Save");
-
             Save.SetAttributeValue("timestamp", DateTime.Now.ToString("o"));
             Save.SetAttributeValue("hostname", System.Environment.MachineName);
             Save.SetAttributeValue("name", System.Environment.UserName);
-            SaveLog.Add(Save);
+            
+            // Add necessary elements to the LinkPlanner Layout
+            LinkPlanner.Add(
+                new XElement("MetaData", "File created with cnMaestroReporting Tool on " + DateTime.Now.ToString()),
+                _project,
+                new XElement("UI", Tree),
+                new XElement("SaveLog", Save)
+                );
 
-            LinkPlanner.Add(Project, UI, SaveLog);
-            doc.Add(LinkPlanner);
-
-            XmlWriterSettings settings = new XmlWriterSettings { Encoding = new UTF8Encoding(false), ConformanceLevel = ConformanceLevel.Document, Indent = true, IndentChars = "  ", };
-            String FileName;
-            if (String.IsNullOrWhiteSpace(_settings.FileName))
-                FileName = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Link Planner.ptpprj";
-            else
-                FileName = _settings.FileName;
-
-            using (XmlWriter xw = XmlTextWriter.Create(FileName, settings))
+            // Generate output document and save it to as file.
+            XDocument doc = new XDocument(new XDeclaration("1.0", "UTF-8", null), LinkPlanner);
+            XmlWriterSettings settings = new XmlWriterSettings { Encoding = new UTF8Encoding(false), ConformanceLevel = ConformanceLevel.Document, Indent = true, IndentChars = "  "};
+            using (XmlWriter xw = XmlTextWriter.Create(_fileName, settings))
             {
                 doc.Save(xw);
                 xw.Flush();
             }
         }
 
+        /// <summary>
+        /// Generate a ruleset for use in a XML PTPPRJ File
+        /// </summary>
+        /// <param name="ruleElementName"></param>
+        /// <param name="ruleSet"></param>
+        /// <returns></returns>
         private XElement CreateXMLRules(string ruleElementName, RuleAttributeSet ruleSet)
         {
             XElement Rules = new XElement(ruleElementName);
@@ -212,7 +214,35 @@ namespace cnMaestroReporting.Output.PTPPRJ
             Rules.Add(Rule);
             return Rules;
         }
+        
+        private XElement CreateXMLTddGroup(float frame_duration, int max_burst_duration, bool v2)
+        {
+            XElement TddSyncGroup = new XElement("TddSyncGroup");
+            TddSyncGroup.SetAttributeValue("frame_duration", frame_duration.ToString());
+            TddSyncGroup.SetAttributeValue("max_burst_duration", max_burst_duration.ToString());
+            TddSyncGroup.SetAttributeValue("v2", v2 ? "1" : "0");
+            return TddSyncGroup;
+        }
 
+        /// <summary>
+        /// Craete a subscriber variant
+        /// </summary>
+        /// <returns></returns>
+        private XElement CreateXMLSubVariant(int fade_margin, string mod_mode, int antenna_height, string family)
+        {
+            XElement SubscriberVariant = new XElement("SubscriberVariant");
+            SubscriberVariant.SetAttributeValue("fade_margin", fade_margin.ToString());
+            SubscriberVariant.SetAttributeValue("mod_mode", mod_mode);
+            SubscriberVariant.SetAttributeValue("antenna_height", antenna_height.ToString());
+            SubscriberVariant.SetAttributeValue("family", family);
+            return SubscriberVariant;
+        }
+
+        /// <summary>
+        /// Convert towers to XML Places
+        /// </summary>
+        /// <param name="tower"></param>
+        /// <returns></returns>
         private XElement CreateXMLTowerPlaces(KeyValuePair<string, CnLocation> tower)
         {
             XElement Place = new XElement("Place");
@@ -226,6 +256,11 @@ namespace cnMaestroReporting.Output.PTPPRJ
             return Place;
         }
 
+        /// <summary>
+        /// Convert SubscriberRadioInfo to XML Places
+        /// </summary>
+        /// <param name="sm"></param>
+        /// <returns></returns>
         private XElement CreateXMLSubscriberPlaces(SubscriberRadioInfo sm)
         {
             XElement Place = new XElement("Place");
@@ -240,6 +275,11 @@ namespace cnMaestroReporting.Output.PTPPRJ
             return Place;
         }
 
+        /// <summary>
+        /// Create an XML Hub with all the AccessPoints and Subscriber connections
+        /// </summary>
+        /// <param name="tower"></param>
+        /// <returns></returns>
         private XElement CreateXMLHub(KeyValuePair<string, CnLocation> tower)
         {
             XElement AccessPoints = new XElement("AccessPoints");

@@ -1,0 +1,41 @@
+            Project.Add(new XElement("Antennas"));
+            Project.Add(new XElement("SubscriberAntennas"));
+
+            XElement CustomFields = new XElement("CustomFields");
+            XElement CustomFieldSet1 = new XElement("CustomFieldSet");
+            CustomFieldSet1.SetAttributeValue("kind", "access_point");
+            XElement CustomFieldSet2 = new XElement("CustomFieldSet");
+            CustomFieldSet2.SetAttributeValue("kind", "end");
+            XElement CustomFieldSet3 = new XElement("CustomFieldSet");
+            CustomFieldSet3.SetAttributeValue("kind", "hub");
+            XElement CustomFieldSet4 = new XElement("CustomFieldSet");
+            CustomFieldSet4.SetAttributeValue("kind", "link");
+            XElement CustomFieldSet5 = new XElement("CustomFieldSet");
+            CustomFieldSet5.SetAttributeValue("kind", "place");
+            XElement CustomFieldSet6 = new XElement("CustomFieldSet");
+            CustomFieldSet6.SetAttributeValue("kind", "project");
+            XElement CustomFieldSet7 = new XElement("CustomFieldSet");
+            CustomFieldSet7.SetAttributeValue("kind", "subscriber");
+            XElement CustomFieldSet8 = new XElement("CustomFieldSet");
+            CustomFieldSet8.SetAttributeValue("kind", "subscriber_place");
+            CustomFields.Add(CustomFieldSet1, CustomFieldSet2, CustomFieldSet3, CustomFieldSet4, CustomFieldSet5, CustomFieldSet6, CustomFieldSet7, CustomFieldSet8);
+            Project.Add(CustomFields);
+
+            Project.Add(new XElement("CustomValues"));
+            Project.Add(new XElement("Templates"));
+
+            XElement Estimates = new XElement("Estimates");
+            Estimates.Add(new XElement("PTPEstimates"));
+            Estimates.Add(new XElement("PMPEstimates"));
+            Estimates.Add(new XElement("WiFiEstimates"));
+            Project.Add(Estimates);
+
+            Project.Add(new XElement("PMPChannelPlans"));
+
+            Project.Add(new XElement("Profiles"));
+
+            Project.Add(new XElement("Links"));
+
+            Project.Add(new XElement("CustInfo"));
+
+            Project.Add(new XElement("Description"));

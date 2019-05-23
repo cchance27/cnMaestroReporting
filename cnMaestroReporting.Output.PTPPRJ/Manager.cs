@@ -53,40 +53,6 @@ namespace cnMaestroReporting.Output.PTPPRJ
             Project.SetAttributeValue("model", "MODEL_ITU");
             Project.SetAttributeValue("default_subscriber_height", _settings.SmHeight.ToString());
 
-            Project.Add(new XElement("Antennas"));
-            Project.Add(new XElement("SubscriberAntennas"));
-
-            XElement CustomFields = new XElement("CustomFields");
-            XElement CustomFieldSet1 = new XElement("CustomFieldSet");
-            CustomFieldSet1.SetAttributeValue("kind", "access_point");
-            XElement CustomFieldSet2 = new XElement("CustomFieldSet");
-            CustomFieldSet2.SetAttributeValue("kind", "end");
-            XElement CustomFieldSet3 = new XElement("CustomFieldSet");
-            CustomFieldSet3.SetAttributeValue("kind", "hub");
-            XElement CustomFieldSet4 = new XElement("CustomFieldSet");
-            CustomFieldSet4.SetAttributeValue("kind", "link");
-            XElement CustomFieldSet5 = new XElement("CustomFieldSet");
-            CustomFieldSet5.SetAttributeValue("kind", "place");
-            XElement CustomFieldSet6 = new XElement("CustomFieldSet");
-            CustomFieldSet6.SetAttributeValue("kind", "project");
-            XElement CustomFieldSet7 = new XElement("CustomFieldSet");
-            CustomFieldSet7.SetAttributeValue("kind", "subscriber");
-            XElement CustomFieldSet8 = new XElement("CustomFieldSet");
-            CustomFieldSet8.SetAttributeValue("kind", "subscriber_place");
-            CustomFields.Add(CustomFieldSet1, CustomFieldSet2, CustomFieldSet3, CustomFieldSet4, CustomFieldSet5, CustomFieldSet6, CustomFieldSet7, CustomFieldSet8);
-            Project.Add(CustomFields);
-
-            Project.Add(new XElement("CustomValues"));
-            Project.Add(new XElement("Templates"));
-
-            XElement Estimates = new XElement("Estimates");
-            Estimates.Add(new XElement("PTPEstimates"));
-            Estimates.Add(new XElement("PMPEstimates"));
-            Estimates.Add(new XElement("WiFiEstimates"));
-            Project.Add(Estimates);
-
-            Project.Add(new XElement("PMPChannelPlans"));
-
             XElement TddSyncGroups = new XElement("TddSyncGroups");
             XElement TddSyncGroup = new XElement("TddSyncGroup");
             TddSyncGroup.SetAttributeValue("frame_duration", "0");
@@ -94,9 +60,6 @@ namespace cnMaestroReporting.Output.PTPPRJ
             TddSyncGroup.SetAttributeValue("v2", "1");
             TddSyncGroups.Add(TddSyncGroup);
             Project.Add(TddSyncGroups);
-
-            XElement Profiles = new XElement("Profiles");
-            Project.Add(Profiles);
 
             // Generate and add Rules to project
             // We create a single rule for the generic rule and pmp rules since they were the same in a basic project 
@@ -125,10 +88,8 @@ namespace cnMaestroReporting.Output.PTPPRJ
                         }
                     }
             };
-
             Project.Add(CreateXMLRules("Rules", RuleAttribs));
             Project.Add(CreateXMLRules("PMPRules", RuleAttribs));
-
             // Create the rule for AP warnings
             Project.Add(CreateXMLRules("APRule", new RuleAttributeSet
             {
@@ -189,18 +150,6 @@ namespace cnMaestroReporting.Output.PTPPRJ
                 Hubs.Add(CreateXMLHub(tower));
             }
             Project.Add(Hubs);
-
-            // TODO: Try Removing
-            XElement Links = new XElement("Links");
-            Project.Add(Links);
-
-            // TODO: Try Removing
-            XElement CustInfo = new XElement("CustInfo");
-            Project.Add(CustInfo);
-
-            // TODO: Try Removing
-            XElement Description = new XElement("Description");
-            Project.Add(Description);
 
             XElement UI = new XElement("UI");
             XElement Tree = new XElement("Tree");

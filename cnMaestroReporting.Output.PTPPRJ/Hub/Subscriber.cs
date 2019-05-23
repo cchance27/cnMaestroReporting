@@ -27,4 +27,3 @@
         // public string dirty { get; } // Not known what this is for
     }
 }
-}

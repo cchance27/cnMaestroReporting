@@ -29,8 +29,8 @@ namespace cnMaestroReporting.Output.PTPPRJ
 
             // Drop subscribers with no latitude/longitude or that we were told are beyond our SM filter distance (assumed invalid)
             _subscribers = subscribers.Where(
-                sm => sm.Latitude != 0 && 
-                sm.Longitude != 0 && 
+                sm => sm.Latitude != 0 &&
+                sm.Longitude != 0 &&
                 sm.DistanceGeoM < _settings.SmInvalidationRangeM)
                 .OrderBy(sm => sm.Name).ToList();
 
@@ -128,7 +128,7 @@ namespace cnMaestroReporting.Output.PTPPRJ
 
             Project.Add(CreateXMLRules("Rules", RuleAttribs));
             Project.Add(CreateXMLRules("PMPRules", RuleAttribs));
-            
+
             // Create the rule for AP warnings
             Project.Add(CreateXMLRules("APRule", new RuleAttributeSet
             {
@@ -166,121 +166,39 @@ namespace cnMaestroReporting.Output.PTPPRJ
             BestServer.Add(SubscriberVariant);
             Project.Add(BestServer);
 
+            // Create XML Entries for all known Towers
             XElement Places = new XElement("Places");
-            var towerCount = 0;
-            foreach (KeyValuePair<string, CnLocation> p in _towers)
+            foreach (KeyValuePair<string, CnLocation> tower in _towers)
             {
-                XElement Place = new XElement("Place");
-                Place.SetAttributeValue("place_id", towerCount.ToString());
-                Place.SetAttributeValue("user_hide", "0");
-                Place.SetAttributeValue("name", p.Key);
-                Place.SetAttributeValue("longitude", p.Value.coordinates[0]);
-                Place.SetAttributeValue("shape", "circle");
-                Place.SetAttributeValue("latitude", p.Value.coordinates[1]);
-                Place.SetAttributeValue("height_asl", "None");
-                Place.SetAttributeValue("maximum_height", _settings.TowerHeight);
-                towerCount++;
-                Places.Add(Place);
+                Places.Add(CreateXMLTowerPlaces(tower));
             }
             Project.Add(Places);
 
-            var smCount = 0;
+            // Create XML Entries for all known Subscribers
             XElement SubscriberPlaces = new XElement("SubscriberPlaces");
-            foreach (SubscriberRadioInfo s in _subscribers)
+            foreach (SubscriberRadioInfo sm in _subscribers)
             {
-                XElement Place = new XElement("Place");
-                Place.SetAttributeValue("place_id", smCount.ToString());
-                Place.SetAttributeValue("user_hide", "0");
-                Place.SetAttributeValue("name", s.Name);
-                Place.SetAttributeValue("longitude", s.Longitude);
-                Place.SetAttributeValue("shape", "circle");
-                Place.SetAttributeValue("latitude", s.Latitude);
-                Place.SetAttributeValue("height_asl", "None");
-                Place.SetAttributeValue("maximum_height", _settings.SmHeight.ToString());
-                smCount++;
-                SubscriberPlaces.Add(Place);
+                SubscriberPlaces.Add(CreateXMLSubscriberPlaces(sm));
             }
             Project.Add(SubscriberPlaces);
 
-            XElement Links = new XElement("Links");
-            Project.Add(Links);
-
+            // Create XML Hubs for all 
             XElement Hubs = new XElement("Hubs");
-            foreach (var t in _towers)
+            foreach (var tower in _towers)
             {
-                XElement AccessPoints = new XElement("AccessPoints");
-                var thisTowerAps = _accessPoints.Where(a => a.Tower == t.Key).OrderBy(a => a.Name).ToList();
-                if (thisTowerAps.Count() > 0)
-                {
-                    XElement hub = new XElement("Hub");
-                    hub.SetAttributeValue("place_id", _towers.IndexOf(t));
-                    hub.SetAttributeValue("name", t.Key);
-
-                    foreach (AccessPointRadioInfo a in thisTowerAps)
-                    {
-
-
-                        XElement AccessPoint = new XElement("AccessPoint");
-                        AccessPoint.SetAttributeValue("antenna_azimuth", a.Azimuth.ToString());
-                        AccessPoint.SetAttributeValue("shape", "triangle");
-                        AccessPoint.SetAttributeValue("ap_frequency", a.Channel.ToString());
-                        AccessPoint.SetAttributeValue("number", thisTowerAps.IndexOf(a) + 1);
-                        AccessPoint.SetAttributeValue("frame_period", "2.5");
-                        AccessPoint.SetAttributeValue("sm_antenna_height", _settings.SmHeight);
-                        AccessPoint.SetAttributeValue("modelled_beamwidth", "120.0");
-
-
-                        XElement Equipment = new XElement("Equipment");
-                        Equipment.SetAttributeValue("max_range", _settings.ApRange.ToString()); //TODO: pull this from the AP
-                        Equipment.SetAttributeValue("bandwidth", "20"); //TODO: pull this from the AP
-                        Equipment.SetAttributeValue("max_range_units", _settings.ApRangeUnits); //TODO: pull this from the AP
-                        Equipment.SetAttributeValue("color_code", a.ColorCode.ToString());
-                        Equipment.SetAttributeValue("sync_input", "AutoSync"); // "Generate Sync"
-                        Equipment.SetAttributeValue("adjacent_channel_support", "0");
-                        Equipment.SetAttributeValue("control_slots", "3"); //TODO
-
-                        Equipment.SetAttributeValue("product", "PMP58450i"); //TODO: calculate this from what we got from the AP
-                        AccessPoint.SetAttributeValue("antenna", "64c923a4-8647-4a49-9508-3bee32945d7c"); //TODO class/enum so not fixed to this antenna?
-                        //8462223a-aa93-4bfb-9023-c3a435fcbfa6 cambium 90
-                        //64c923a4-8647-4a49-9508-3bee32945d7c cambium 90/120
-                        //36e8c5ad-b4fa-4e50-a239-7aee4ce3307e cambium 450m
-                        //AccessPoint.SetAttributeValue("operating_mode", "MEDUSA"); if it's a 450m
-
-                        AccessPoint.Add(Equipment);
-
-                        XElement Subscribers = new XElement("Subscribers");
-                        var thisAPSms = _subscribers.Where(x => x.APName == a.Name).ToList();
-                        foreach (SubscriberRadioInfo s in thisAPSms)
-                        {
-                            XElement subscriber = new XElement("Subscriber");
-                            subscriber.SetAttributeValue("place_id", _subscribers.IndexOf(s));
-                            subscriber.SetAttributeValue("shape", "rectangle");
-
-                            subscriber.SetAttributeValue("product", "PMP58450i"); //todo device type from model
-                            subscriber.SetAttributeValue("antenna", "cf7f457e-6015-4021-bc6b-422cfa1f287f"); //TODO: based on product
-
-                            XElement pmplink = new XElement("PMPLink");
-                            pmplink.SetAttributeValue("minimum_fade_margin_required_sm", _settings.minimumFadeMarginSM.ToString());
-                            pmplink.SetAttributeValue("minimum_fade_margin_required_ap", _settings.minimumFadeMarginAP.ToString());
-                            pmplink.SetAttributeValue("required_attribute_sm", "minimum_availability_required_sm");
-                            pmplink.SetAttributeValue("required_attribute_ap", "minimum_availability_required_ap");
-                            pmplink.SetAttributeValue("minimum_availability_required_sm", _settings.minimumAvailabilitySM.ToString());
-                            pmplink.SetAttributeValue("minimum_availability_required_ap", _settings.minimumAvailabilityAP.ToString());
-                            subscriber.Add(pmplink);
-                            Subscribers.Add(subscriber);
-                        }
-                        AccessPoint.Add(Subscribers);
-                        AccessPoints.Add(AccessPoint);
-                    }
-                    hub.Add(AccessPoints);
-                    Hubs.Add(hub);
-                }
+                Hubs.Add(CreateXMLHub(tower));
             }
             Project.Add(Hubs);
 
+            // TODO: Try Removing
+            XElement Links = new XElement("Links");
+            Project.Add(Links);
+
+            // TODO: Try Removing
             XElement CustInfo = new XElement("CustInfo");
             Project.Add(CustInfo);
 
+            // TODO: Try Removing
             XElement Description = new XElement("Description");
             Project.Add(Description);
 
@@ -344,6 +262,108 @@ namespace cnMaestroReporting.Output.PTPPRJ
             }
             Rules.Add(Rule);
             return Rules;
+        }
+
+        private XElement CreateXMLTowerPlaces(KeyValuePair<string, CnLocation> tower)
+        {
+            XElement Place = new XElement("Place");
+            Place.SetAttributeValue("place_id", _towers.IndexOf(tower).ToString());
+            Place.SetAttributeValue("name", tower.Key);
+            Place.SetAttributeValue("longitude", tower.Value.coordinates[0]);
+            Place.SetAttributeValue("shape", "circle");
+            Place.SetAttributeValue("latitude", tower.Value.coordinates[1]);
+            Place.SetAttributeValue("height_asl", "None");
+            Place.SetAttributeValue("maximum_height", _settings.TowerHeight);
+            return Place;
+        }
+
+        private XElement CreateXMLSubscriberPlaces(SubscriberRadioInfo sm)
+        {
+            XElement Place = new XElement("Place");
+            Place.SetAttributeValue("place_id", _subscribers.IndexOf(sm));
+            Place.SetAttributeValue("user_hide", "0");
+            Place.SetAttributeValue("name", sm.Name);
+            Place.SetAttributeValue("longitude", sm.Longitude);
+            Place.SetAttributeValue("shape", "circle");
+            Place.SetAttributeValue("latitude", sm.Latitude);
+            Place.SetAttributeValue("height_asl", "None");
+            Place.SetAttributeValue("maximum_height", _settings.SmHeight.ToString());
+            return Place;
+        }
+
+        private XElement CreateXMLHub(KeyValuePair<string, CnLocation> tower)
+        {
+            XElement AccessPoints = new XElement("AccessPoints");
+            var thisTowerAps = _accessPoints.Where(a => a.Tower == tower.Key).OrderBy(a => a.Name).ToList();
+            if (thisTowerAps.Count() > 0)
+            {
+                // We've got a tower with a hub so lets start creating the hub
+                XElement hub = new XElement("Hub");
+                hub.SetAttributeValue("place_id", _towers.IndexOf(tower));
+                hub.SetAttributeValue("name", tower.Key);
+
+                foreach (AccessPointRadioInfo a in thisTowerAps)
+                {
+                    XElement AccessPoint = new XElement("AccessPoint");
+                    AccessPoint.SetAttributeValue("antenna_azimuth", a.Azimuth.ToString());
+                    AccessPoint.SetAttributeValue("shape", "triangle");
+                    AccessPoint.SetAttributeValue("ap_frequency", a.Channel.ToString());
+                    AccessPoint.SetAttributeValue("number", thisTowerAps.IndexOf(a) + 1);
+                    AccessPoint.SetAttributeValue("frame_period", "2.5");
+                    AccessPoint.SetAttributeValue("sm_antenna_height", _settings.SmHeight);
+                    AccessPoint.SetAttributeValue("modelled_beamwidth", "120.0");
+
+
+                    XElement Equipment = new XElement("Equipment");
+                    Equipment.SetAttributeValue("max_range", _settings.ApRange.ToString()); //TODO: pull this from the AP
+                    Equipment.SetAttributeValue("bandwidth", "20"); //TODO: pull this from the AP
+                    Equipment.SetAttributeValue("max_range_units", _settings.ApRangeUnits); //TODO: pull this from the AP
+                    Equipment.SetAttributeValue("color_code", a.ColorCode.ToString());
+                    Equipment.SetAttributeValue("sync_input", "AutoSync"); // "Generate Sync"
+                    Equipment.SetAttributeValue("adjacent_channel_support", "0");
+                    Equipment.SetAttributeValue("control_slots", "3"); //TODO
+
+                    Equipment.SetAttributeValue("product", "PMP58450i"); //TODO: calculate this from what we got from the AP
+                    AccessPoint.SetAttributeValue("antenna", "64c923a4-8647-4a49-9508-3bee32945d7c"); //TODO class/enum so not fixed to this antenna?
+                                                                                                      //8462223a-aa93-4bfb-9023-c3a435fcbfa6 cambium 90
+                                                                                                      //64c923a4-8647-4a49-9508-3bee32945d7c cambium 90/120
+                                                                                                      //36e8c5ad-b4fa-4e50-a239-7aee4ce3307e cambium 450m
+                                                                                                      //AccessPoint.SetAttributeValue("operating_mode", "MEDUSA"); if it's a 450m
+
+                    AccessPoint.Add(Equipment);
+
+                    XElement Subscribers = new XElement("Subscribers");
+                    var thisAPSms = _subscribers.Where(x => x.APName == a.Name).ToList();
+                    foreach (SubscriberRadioInfo s in thisAPSms)
+                    {
+                        XElement subscriber = new XElement("Subscriber");
+                        subscriber.SetAttributeValue("place_id", _subscribers.IndexOf(s));
+                        subscriber.SetAttributeValue("shape", "rectangle");
+
+                        subscriber.SetAttributeValue("product", "PMP58450i"); //todo device type from model
+                        subscriber.SetAttributeValue("antenna", "cf7f457e-6015-4021-bc6b-422cfa1f287f"); //TODO: based on product
+
+                        XElement pmplink = new XElement("PMPLink");
+                        pmplink.SetAttributeValue("minimum_fade_margin_required_sm", _settings.minimumFadeMarginSM.ToString());
+                        pmplink.SetAttributeValue("minimum_fade_margin_required_ap", _settings.minimumFadeMarginAP.ToString());
+                        pmplink.SetAttributeValue("required_attribute_sm", "minimum_availability_required_sm");
+                        pmplink.SetAttributeValue("required_attribute_ap", "minimum_availability_required_ap");
+                        pmplink.SetAttributeValue("minimum_availability_required_sm", _settings.minimumAvailabilitySM.ToString());
+                        pmplink.SetAttributeValue("minimum_availability_required_ap", _settings.minimumAvailabilityAP.ToString());
+                        subscriber.Add(pmplink);
+                        Subscribers.Add(subscriber);
+                    }
+                    AccessPoint.Add(Subscribers);
+                    AccessPoints.Add(AccessPoint);
+                }
+                hub.Add(AccessPoints);
+
+                return hub;
+            }
+            else
+            {
+                return null;
+            }
         }
     }
 }

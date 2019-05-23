@@ -20,7 +20,7 @@
         public string use_noise { get; set; } = "1"; // 0/1 enable disable ap noise in calc
         public string noise_density { get; set; } = "-90"; // noise level on the ap
         public string use_noise_sm { get; set; } = "1"; // 0/1 enable/disable sm noise in calc
-        public string noise_density_sm { get; set; } = "-90" // noise level on sm
+        public string noise_density_sm { get; set; } = "-90"; // noise level on sm
         
         // Not implementing below items
         /// Unknowns

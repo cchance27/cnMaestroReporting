@@ -7,10 +7,11 @@ using System.Linq;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
+using static cnMaestroReporting.Output.PTPPRJ.Rules;
 
 namespace cnMaestroReporting.Output.PTPPRJ
 {
-    public class Manager
+    public partial class Manager
     {
         private Settings _settings { get; } = new Settings();
         private IList<SubscriberRadioInfo> _subscribers { get; }
@@ -226,16 +227,17 @@ namespace cnMaestroReporting.Output.PTPPRJ
                         AccessPoint.SetAttributeValue("number", thisTowerAps.IndexOf(a) + 1);
                         AccessPoint.SetAttributeValue("frame_period", "2.5");
                         AccessPoint.SetAttributeValue("sm_antenna_height", _settings.SmHeight);
-                        AccessPoint.SetAttributeValue("modelled_beamwidth", "90.0");
-                        AccessPoint.SetAttributeValue("sync_input", "AutoSync"); // "Generate Sync"
-                        AccessPoint.SetAttributeValue("adjacent_channel_support", "0");
-                        AccessPoint.SetAttributeValue("control_slots", "3"); //TODO
-                        AccessPoint.SetAttributeValue("color_code", a.ColorCode.ToString());
+                        AccessPoint.SetAttributeValue("modelled_beamwidth", "120.0");
+
 
                         XElement Equipment = new XElement("Equipment");
                         Equipment.SetAttributeValue("max_range", _settings.ApRange.ToString()); //TODO: pull this from the AP
                         Equipment.SetAttributeValue("bandwidth", "20"); //TODO: pull this from the AP
                         Equipment.SetAttributeValue("max_range_units", _settings.ApRangeUnits); //TODO: pull this from the AP
+                        Equipment.SetAttributeValue("color_code", a.ColorCode.ToString());
+                        Equipment.SetAttributeValue("sync_input", "AutoSync"); // "Generate Sync"
+                        Equipment.SetAttributeValue("adjacent_channel_support", "0");
+                        Equipment.SetAttributeValue("control_slots", "3"); //TODO
 
                         Equipment.SetAttributeValue("product", "PMP58450i"); //TODO: calculate this from what we got from the AP
                         AccessPoint.SetAttributeValue("antenna", "64c923a4-8647-4a49-9508-3bee32945d7c"); //TODO class/enum so not fixed to this antenna?
@@ -343,35 +345,5 @@ namespace cnMaestroReporting.Output.PTPPRJ
             Rules.Add(Rule);
             return Rules;
         }
-
-        struct RuleAttributeSet
-        {
-            public string name;
-            public string format;
-            public string stop_execution;
-            public string disabled;
-            public string hidesm;
-            public string boolean;
-            public string excluded;
-            public string hidden;
-            public string format_settings;
-            public string description;
-            public RuleExpressionGroup[] expressionGroups;
-        }
-
-        struct RuleExpressionGroup
-        {
-            public string boolean;
-            public RuleExpression[] expressions;
-        }
-
-        struct RuleExpression
-        {
-            public string comparison_value;
-            public string predicate;
-            public string property;
-        }
-
-
     }
 }

@@ -7,7 +7,7 @@ namespace cnMaestroReporting.Output.KML
     public class Settings
     {
         public string FileName { get; set; }
-        public int MaxSMDistance { get; set; } = 10000;
+        public int SmInvalidationRangeM { get; set; } = 10000;
         public Dictionary<string, StyleConfig> Icons { get; set; }
     }
 

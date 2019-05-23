@@ -30,7 +30,7 @@ namespace cnMaestroReporting.Output.PTPPRJ
             _subscribers = subscribers.Where(
                 sm => sm.Latitude != 0 && 
                 sm.Longitude != 0 && 
-                sm.DistanceM < _settings.SmInvalidationRangeM)
+                sm.DistanceGeoM < _settings.SmInvalidationRangeM)
                 .OrderBy(sm => sm.Name).ToList();
 
             _towers = towers.OrderBy(tower => tower.Key).ToList();
@@ -217,18 +217,33 @@ namespace cnMaestroReporting.Output.PTPPRJ
 
                     foreach (AccessPointRadioInfo a in thisTowerAps)
                     {
+
+
                         XElement AccessPoint = new XElement("AccessPoint");
-                        AccessPoint.SetAttributeValue("antenna", "64c923a4-8647-4a49-9508-3bee32945d7c"); //TODO class/enum so not fixed to this antenna?
                         AccessPoint.SetAttributeValue("antenna_azimuth", a.Azimuth.ToString());
                         AccessPoint.SetAttributeValue("shape", "triangle");
                         AccessPoint.SetAttributeValue("ap_frequency", a.Channel.ToString());
                         AccessPoint.SetAttributeValue("number", thisTowerAps.IndexOf(a) + 1);
+                        AccessPoint.SetAttributeValue("frame_period", "2.5");
+                        AccessPoint.SetAttributeValue("sm_antenna_height", _settings.SmHeight);
+                        AccessPoint.SetAttributeValue("modelled_beamwidth", "90.0");
+                        AccessPoint.SetAttributeValue("sync_input", "AutoSync"); // "Generate Sync"
+                        AccessPoint.SetAttributeValue("adjacent_channel_support", "0");
+                        AccessPoint.SetAttributeValue("control_slots", "3"); //TODO
+                        AccessPoint.SetAttributeValue("color_code", a.ColorCode.ToString());
 
                         XElement Equipment = new XElement("Equipment");
-                        Equipment.SetAttributeValue("max_range", _settings.ApRange.ToString()); 
-                        Equipment.SetAttributeValue("bandwidth", "20"); //todo this isn't pulled into the typed object yet
-                        Equipment.SetAttributeValue("max_range_units", _settings.ApRangeUnits); //todo
-                        Equipment.SetAttributeValue("product", "PMP58450i"); //todo ap mising type
+                        Equipment.SetAttributeValue("max_range", _settings.ApRange.ToString()); //TODO: pull this from the AP
+                        Equipment.SetAttributeValue("bandwidth", "20"); //TODO: pull this from the AP
+                        Equipment.SetAttributeValue("max_range_units", _settings.ApRangeUnits); //TODO: pull this from the AP
+
+                        Equipment.SetAttributeValue("product", "PMP58450i"); //TODO: calculate this from what we got from the AP
+                        AccessPoint.SetAttributeValue("antenna", "64c923a4-8647-4a49-9508-3bee32945d7c"); //TODO class/enum so not fixed to this antenna?
+                        //8462223a-aa93-4bfb-9023-c3a435fcbfa6 cambium 90
+                        //64c923a4-8647-4a49-9508-3bee32945d7c cambium 90/120
+                        //36e8c5ad-b4fa-4e50-a239-7aee4ce3307e cambium 450m
+                        //AccessPoint.SetAttributeValue("operating_mode", "MEDUSA"); if it's a 450m
+
                         AccessPoint.Add(Equipment);
 
                         XElement Subscribers = new XElement("Subscribers");
@@ -236,10 +251,11 @@ namespace cnMaestroReporting.Output.PTPPRJ
                         foreach (SubscriberRadioInfo s in thisAPSms)
                         {
                             XElement subscriber = new XElement("Subscriber");
-                            subscriber.SetAttributeValue("antenna", "cf7f457e-6015-4021-bc6b-422cfa1f287f");
                             subscriber.SetAttributeValue("place_id", _subscribers.IndexOf(s));
                             subscriber.SetAttributeValue("shape", "rectangle");
+
                             subscriber.SetAttributeValue("product", "PMP58450i"); //todo device type from model
+                            subscriber.SetAttributeValue("antenna", "cf7f457e-6015-4021-bc6b-422cfa1f287f"); //TODO: based on product
 
                             XElement pmplink = new XElement("PMPLink");
                             pmplink.SetAttributeValue("minimum_fade_margin_required_sm", _settings.minimumFadeMarginSM.ToString());

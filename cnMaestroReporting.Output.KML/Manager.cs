@@ -167,8 +167,7 @@ namespace cnMaestroReporting.Output.KML
             foreach (var sm in sectorSubscribers)
             {
                 // Check if the sm coordinates are realistic (within our configured range of the sector)
-                var MapDistance = GeoCalc.GeoDistance((double)sm.Latitude, (double)sm.Longitude, (double)location.coordinates[1], (double)location.coordinates[0]);
-                if (MapDistance <= settings.MaxSMDistance)
+                if (sm.DistanceGeoM <= settings.SmInvalidationRangeM)
                 {
                     var smPlacemark = generateSmPlacemark(sm);
                     if (smPlacemark.Visibility == true)

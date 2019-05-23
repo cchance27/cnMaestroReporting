@@ -169,6 +169,9 @@ namespace cnMaestroReporting.CLI
 
             Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
 
+            //TODO: change coordinate system to use a strongly typed lat/long not the coordinates from cnLocation that are just an array as its confusing.
+            var GeoDistance = GeoCalc.GeoDistance((double)smDevice.location.coordinates[1], (double)smDevice.location.coordinates[0], (double)apDevice.location.coordinates[1], (double)apDevice.location.coordinates[0]);
+
             return new SubscriberRadioInfo()
             {
                 Name = smDevice.name,
@@ -180,6 +183,7 @@ namespace cnMaestroReporting.CLI
                 SmGain = smGain,
                 APName = apDevice.name,
                 DistanceM = (int)smDistanceM,
+                DistanceGeoM = (int)GeoDistance,
                 IP = smDevice.ip,
                 Model = smDevice.product,
                 SmEPL = Math.Round(smEPL, 2),

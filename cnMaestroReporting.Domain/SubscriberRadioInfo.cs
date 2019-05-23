@@ -29,7 +29,15 @@ namespace cnMaestroReporting.Domain
         [KMLConfig(Hidden = true)]
         public decimal Longitude { get; set; }
 
+        /// <summary>
+        /// This distance represents the real world distance based on AirDelay and frequency calculations.
+        /// </summary>
         public int DistanceM { get; set; }
+
+        /// <summary>
+        /// This distance represents the distance from AP based on the SM's programmed Latitude and Longitude
+        /// </summary>
+        public int DistanceGeoM { get; set; }
 
         public string Model { get; set; }
 

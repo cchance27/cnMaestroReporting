@@ -27,6 +27,13 @@ namespace CommonCalculations
         public static Double FreqHzToMetersPerSec(int FreqHz) => FreqHzToWaveLength(FreqHz) * FreqHz;
         public static Double FreqHzToNanoMetersPerSec(double FreqHz) => (FreqHzToWaveLength(FreqHz) * FreqHz) / NanoSecondsPerSecond;
 
+        /// <summary>
+        /// Calculate the Distance based on the NanoSecond AirDelay and Frequency in use
+        /// </summary>
+        /// <param name="AirDelayNS"></param>
+        /// <param name="HzFrequency"></param>
+        /// <param name="OneWayAirDelayNS"></param>
+        /// <returns></returns>
         public static Double MetersFromAirDelay(int AirDelayNS, double HzFrequency, bool OneWayAirDelayNS = false)
         {
             Double NanoMetersPerSec = RFCalc.FreqHzToNanoMetersPerSec(HzFrequency);

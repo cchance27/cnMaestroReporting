@@ -31,6 +31,7 @@ namespace cnMaestroReporting.Domain
         public string Tower { get; set; }
 
         public int Azimuth { get; set; }
+
         public int Downtilt { get; set; }
 
         public TimeSpan Uptime { get; set; }

@@ -8,6 +8,8 @@ namespace cnMaestroReporting.Output.KML
     {
         public string FileName { get; set; }
         public int SmInvalidationRangeM { get; set; } = 10000;
+        public bool alwaysShowSectorPlot { get;set; } = false;
+        public bool showSubscribers { get; set; } = true;
         public Dictionary<string, StyleConfig> Icons { get; set; }
     }
 

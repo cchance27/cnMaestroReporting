@@ -24,11 +24,13 @@ namespace cnMaestroReporting.Output.KML
         private Style whiteIcon { get; }
         private Style redIcon { get; }
         private Style towerIcon { get; }
-        private Style plotStyle { get; }
+        private Dictionary<double, Style> plotStyle { get; }
 
         private IEnumerable<SubscriberRadioInfo> _subscribers { get; }
         private IEnumerable<KeyValuePair<string, CnLocation>> _towers { get; }
         private IEnumerable<AccessPointRadioInfo> _accessPoints { get; }
+        private double[] _accessChannels { get; }
+        private Color32[] _randomColors { get; }
 
         public Manager(
             IConfigurationSection configSection,
@@ -47,20 +49,38 @@ namespace cnMaestroReporting.Output.KML
             greenIcon = CreateIconStyle(nameof(greenIcon), settings.Icons["Good"]);
             whiteIcon = CreateIconStyle(nameof(whiteIcon), settings.Icons["Unknown"]);
             towerIcon = CreateIconStyle(nameof(towerIcon), settings.Icons["Tower"]);
-            plotStyle = CreatePlotStyle(nameof(plotStyle));
-
             _subscribers = subscribers.OrderBy(sm => sm.Name);
             _towers = towers.OrderBy(tower => tower.Key);
             _accessPoints = accesspoints.OrderBy(ap => ap.Name); // Name sorted dictionary.
+
+            // Hardcoded random colors ugly but will work for now
+            // TODO: Maybe an option so we can have colors by different parameters configurable, Random, Channel, Customer Count, Etc
+            _randomColors = new Color32[] { new Color32(175, 0, 0, 255), new Color32(175, 64, 115, 255), new Color32(175, 128, 213, 255), new Color32(175, 0, 242, 194), new Color32(175, 162, 242, 0), new Color32(175, 242, 162, 0), new Color32(175, 140, 0, 75), new Color32(175, 170, 0, 255), new Color32(175, 0, 0, 242), new Color32(175, 102, 129, 204), new Color32(175, 0, 194, 242), new Color32(175, 121, 242, 186), new Color32(175, 191, 230, 115), new Color32(175, 166, 124, 41), new Color32(175, 230, 115, 191), new Color32(175, 213, 128, 255), new Color32(175, 51, 51, 204), new Color32(175, 48, 105, 191), new Color32(175, 0, 112, 140), new Color32(175, 0, 140, 37), new Color32(175, 145, 153, 38), new Color32(175, 255, 102, 0), new Color32(175, 140, 70, 117), new Color32(175, 95, 0, 178), new Color32(175, 115, 115, 229), new Color32(175, 0, 68, 127), new Color32(175, 128, 247, 255), new Color32(175, 57, 230, 57), new Color32(175, 230, 214, 0), new Color32(175, 166, 66, 0), new Color32(175, 179, 0, 143), new Color32(175, 97, 0, 242), new Color32(175, 70, 79, 140), new Color32(175, 61, 157, 242), new Color32(175, 0, 166, 155), new Color32(175, 88, 166, 0), new Color32(175, 255, 204, 0), new Color32(175, 204, 129, 102), new Color32(175, 255, 0, 238), new Color32(175, 143, 102, 204), new Color32(175, 0, 37, 140), new Color32(175, 83, 127, 166), new Color32(175, 77, 153, 148), new Color32(175, 98, 128, 64), new Color32(175, 166, 149, 83), new Color32(175, 255, 64, 89), new Color32(175, 141, 41, 166), new Color32(175, 63, 35, 140) };
+            _accessChannels = accesspoints.GroupBy(ap => ap.Channel).Select(g => g.First()).Select(ap => ap.Channel).ToArray(); // Grab our list of unique channels
+            plotStyle = new Dictionary<double, Style>();
+            for (int i = 0; i < _accessChannels.Length; i++)
+            {
+                // Hacky way of supporting rolling over the colors to be more transpartent on the higher channels if we run out of colors
+                int colorIndex = i % _randomColors.Length;
+                int alpha = _randomColors[colorIndex].Alpha;
+                if (i > _randomColors.Length)
+                {
+                    alpha /= (i / _randomColors.Length) + 1;
+                }
+                Color32 c = new Color32((byte)alpha, _randomColors[colorIndex].Blue, _randomColors[colorIndex].Green, _randomColors[colorIndex].Red);
+                
+                plotStyle.Add(_accessChannels[i], CreatePlotStyle(_accessChannels[i], c));
+            }
         }
 
         /// <summary>
-        /// Create a PlotStyle 
+        /// Create a PlotStyle based on channel
         /// </summary>
         /// <param name="name"></param>
         /// <returns></returns>
-        private Style CreatePlotStyle(string name)
+        private Style CreatePlotStyle(double channel, Color32 color)
         {
+            string name = $"plot_{channel.ToString()}";
            var plotStyle = new Style()
             {
                 Id = name,
@@ -68,10 +88,11 @@ namespace cnMaestroReporting.Output.KML
                 {
                     Outline = false,
                     Fill = true,
-                    Color = new Color32(127, 255, 255, 255)
+                    Color = color
                 }
             };
-            plotStyle.Polygon.ColorMode = ColorMode.Random;
+            // NOT RANDOM
+            // plotStyle.Polygon.ColorMode = ColorMode.Random;
             return plotStyle;
         }
 
@@ -161,19 +182,21 @@ namespace cnMaestroReporting.Output.KML
             var sectorSubscribers = _subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.APName == ap.Name);
 
             sectorFolder.Description = CreateDescriptionFromObject(ap);
-            
-            
-            // Loop through and create all the placemarks for these sector subscribers.
-            foreach (var sm in sectorSubscribers)
-            {
-                // Check if the sm coordinates are realistic (within our configured range of the sector)
-                if (sm.DistanceGeoM <= settings.SmInvalidationRangeM)
-                {
-                    var smPlacemark = generateSmPlacemark(sm);
-                    if (smPlacemark.Visibility == true)
-                        showSector = true;
 
-                    sectorFolder.AddFeature(smPlacemark);
+            // Loop through and create all the placemarks for these sector subscribers.
+            if (settings.showSubscribers)
+            {
+                foreach (var sm in sectorSubscribers)
+                {
+                    // Check if the sm coordinates are realistic (within our configured range of the sector)
+                    if (sm.DistanceGeoM <= settings.SmInvalidationRangeM)
+                    {
+                        var smPlacemark = generateSmPlacemark(sm);
+                        if (smPlacemark.Visibility == true)
+                            showSector = true;
+
+                        sectorFolder.AddFeature(smPlacemark);
+                    }
                 }
             }
 
@@ -181,9 +204,15 @@ namespace cnMaestroReporting.Output.KML
             {
                 // Generate the plot to show the coverage based on the sectors azimuth and distance
                 var sectorPlot = generateSectorPlot((double)location.coordinates[1], (double)location.coordinates[0], ap.Azimuth, 500, 90);
-                var plotPlacemark = new Placemark() { Name = ap.Name + " Coverage", Geometry = sectorPlot, StyleUrl = new Uri($"#" + nameof(plotStyle), UriKind.Relative) };
+                var plotPlacemark = new Placemark() { Name = ap.Name + " Coverage", Geometry = sectorPlot, StyleUrl = new Uri($"#plot_{ap.Channel.ToString()}", UriKind.Relative) };
+
+                // We chose in settings to always show sector plots
+                if (settings.alwaysShowSectorPlot == true) { showSector = true; };
                 plotPlacemark.Visibility = showSector;
                 sectorFolder.AddFeature(plotPlacemark);
+            } else
+            {
+                Console.WriteLine($"AP Missing Azimuth: {ap.Name}");
             }
 
             return sectorFolder;
@@ -199,15 +228,21 @@ namespace cnMaestroReporting.Output.KML
         private Polygon generateSectorPlot(double latitude, double longitude, double azimuth, double distance, double sectorWidth, double sectorPointSplit = 8)
         {
             var sectorEdges = new LinearRing();
-            var Coordinates = new CoordinateCollection();
-            Coordinates.Add(new Vector(latitude, longitude)); // Starting point
+            var Coordinates = new CoordinateCollection
+            {
+                new Vector(latitude, longitude) // Starting point
+            };
 
             // Find the first point of the arc
             var startAzi = azimuth - (sectorWidth / 2);
+            if (startAzi < 0) { 
+                startAzi = 360 + startAzi; 
+            };
 
-            for (double x = 0; x < sectorWidth; x = x + (sectorWidth / sectorPointSplit)) // Split the total number of points on the arc 
+            for (double x = 0; x <= sectorWidth; x += (sectorWidth / sectorPointSplit)) // Split the total number of points on the arc 
             {
-                var newLocation = GeoCalc.LocationFromAzimuth(latitude, longitude, distance, startAzi + x); // Find this point on the arc lat/long
+                var newAzi = startAzi + x > 360 ? startAzi + x - 360 : startAzi + x; 
+                var newLocation = GeoCalc.LocationFromAzimuth(latitude, longitude, distance, newAzi); // Find this point on the arc lat/long
                 Coordinates.Add(new Vector(newLocation.latitude, newLocation.longitude));
             }
 
@@ -338,7 +373,12 @@ namespace cnMaestroReporting.Output.KML
             doc.AddStyle(greenIcon);
             doc.AddStyle(redIcon);
             doc.AddStyle(towerIcon);
-            doc.AddStyle(plotStyle);
+
+            foreach (Style s in plotStyle.Values)
+            {
+                doc.AddStyle(s);
+            }
+            
 
             doc.Description = new Description()
             {
@@ -357,13 +397,19 @@ namespace cnMaestroReporting.Output.KML
         /// <summary>
         /// Basic output of the instances Kml to a Kmz as specified in configuration.
         /// </summary>
-        public void Save()
+        public void Save(string band = "")
         {
             string FileName;
             if (String.IsNullOrWhiteSpace(settings.FileName))
-                FileName = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Subscriber Map.kmz";
-            else
-                FileName = settings.FileName;
+                if (band == "")
+                {
+                    FileName = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Subscriber Map.kmz";
+                } else
+                {
+                    FileName = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Subscriber Map ({band}).kmz";
+                }
+                else
+                    FileName = settings.FileName;
 
             KmlFile kmlFile = KmlFile.Create(OutputKml, true);
             using (FileStream fs = new FileStream(FileName, FileMode.Create))

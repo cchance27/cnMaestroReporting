@@ -2,6 +2,7 @@
 using cnMaestroReporting.Domain;
 using CommonCalculations;
 using Microsoft.Extensions.Configuration;
+using MoreLinq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -36,62 +37,51 @@ namespace cnMaestroReporting.CLI
 
             //Dictionary of all Devices so we can lookup by mac address
             var devices = deviceTask.Result
+                .DistinctBy(dev => dev.mac)
                 .Where(dev => dev.status == "online")
                 .ToDictionary(dev => dev.mac);
 
-            // List of online SM's that we will poll for their information
+            // List of online SM's that we can use for snmp polling
             var smIPs = deviceStatTask.Result
+                .DistinctBy(sm => sm.mac)
                 .Where(dev => dev.mode == "sm" && dev.status == "online")
                 .Select(dev => devices[dev.mac].ip).ToArray();
 
+            // List of online AP's that we can use for snmp polling
             var apIPs = deviceStatTask.Result
+                .DistinctBy(ap => ap.mac)
                 .Where(dev => dev.mode == "ap" && dev.status == "online")
                 .Select(dev => devices[dev.mac].ip).ToArray();
 
             // Async fetch all the SNMP From devices and return us a Dictionary<ipAddressStr, Dictionary<OIDstr, ValueStr>>
-            var snmpResultsSMTask = snmp.GetMultipleDeviceOidsAsync(smIPs, SNMP.OIDs.smAirDelayNs, SNMP.OIDs.smFrequencyHz); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
-            var snmpResultsAPTask = snmp.GetMultipleDeviceOidsAsync(apIPs, SNMP.OIDs.sysContact); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
-
+            var progressIndicator = new Progress<SNMP.SnmpProgress>(ReportProgress);
+            var snmpResultsSMTask = snmp.GetMultipleDeviceOidsAsync(smIPs, progressIndicator, SNMP.OIDs.smAirDelayNs, SNMP.OIDs.smFrequencyHz); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
+            var snmpResultsAPTask = snmp.GetMultipleDeviceOidsAsync(apIPs, progressIndicator, SNMP.OIDs.sysContact); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
             Task.WaitAll(snmpResultsSMTask, snmpResultsAPTask);
 
-            // Stringly typed dictionary of all accessPoints
-            var apInfo = deviceStatTask.Result
-                .Where(dev => dev.mode == "ap" && dev.status == "online")
-                .ToDictionary(ap => ap.mac, ap => {
-                    var apRI = new AccessPointRadioInfo()
-                    {
-                        Name = ap.name,
-                        Esn = ap.mac,
-                        IP = devices[ap.mac].ip,
-                        ConnectedSMs = ap.connected_sms,
-                        Lan = ap.lan_status,
-                        Channel = Double.Parse(ap.radio.frequency),
-                        ColorCode = Byte.Parse(ap.radio.color_code),
-                        SyncState = ap.radio.sync_state,
-                        TxPower = ap.radio.tx_power ?? 0,
-                        Tower = ap.tower,
-                        Azimuth = 0,
-                        Downtilt = 0,
-                        Uptime = TimeSpan.FromSeconds(Double.Parse(ap.status_time))
-                    };
+            // Enumerable of OnlineAPs
+            var onlineAPs = deviceStatTask.Result
+                .Where(dev => dev.mode == "ap" && dev.status == "online");
 
-                    // Parse the sysContact into Azimuth and Downtilt
-                    var azdtMatch = Regex.Match(snmpResultsAPTask.Result[apRI.IP][SNMP.OIDs.sysContact], @"\[(?<azimuth>\d*)AZ\s(?<downtilt>\d*)DT\]");
-                    if (azdtMatch.Success)
-                    {
-                        // If we can parse the azimuth and downtilt save it to the AP if we can't set it to an invalid value so we know it wasn't good (0 would be a valid value so would -1)
-                        var goodAzimuth = Int32.TryParse(azdtMatch.Groups["azimuth"].ToString(), out int azimuth);
-                        var goodDowntilt = Int32.TryParse(azdtMatch.Groups["downtilt"].ToString(), out int downtilt);
-                        apRI.Azimuth = goodAzimuth ? azimuth : 999;
-                        apRI.Downtilt = goodDowntilt ? downtilt : 999;
-                    }
+            // TODO: API WONKYNESS IN 2.2.0r60 appears broken is returning duplicates so we had to add a distinctby to drop duplicates, and we're apparently not getting sent all devices/aps.
 
-                    return apRI;
-                    });
+            // Just display which aps we found (debugging issue with duplicates)
+            onlineAPs.DistinctBy(ap=>ap.mac).OrderBy(ap => ap.name)
+                .ForEach(ap => Console.WriteLine($"{ap.name} Detected with MAC {ap.mac}"));
+
+            // convert our IList task to a strongly typed object for easy use.
+            var apInfo = onlineAPs.DistinctBy(ap => ap.mac).ToDictionary(
+                ap => ap.mac, 
+                ap => generateAccessPoint(
+                    ap, 
+                    devices[ap.mac].ip, 
+                    snmpResultsAPTask.Result[devices[ap.mac].ip][SNMP.OIDs.sysContact]
+                    ));
 
             // Nice select that returns all of our generated SM Info.
             List<SubscriberRadioInfo> finalSubResults = deviceStatTask.Result
                 .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResultsSMTask.Result.Keys.Contains(devices[dev.mac].ip))
+                .DistinctBy(sm => sm.mac)
                 .Select((smStat) => GenerateSmRadioInfo(
                     apDevice: devices[smStat.ap_mac],
                     apInfo: apInfo[smStat.ap_mac],
@@ -104,24 +94,66 @@ namespace cnMaestroReporting.CLI
             outputXLSX.Generate(finalSubResults);
             outputXLSX.Save();
 
-            // Export to KMZ
-            var outputKML = new Output.KML.Manager(generalConfig.GetSection("outputs:kml"),
-                finalSubResults,
-                towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)),
-                apInfo.Values.ToList()
-                );
-            outputKML.GenerateKML();
-            outputKML.Save();
+            // Find our AP Bands
+            var bands = apInfo.Values.DistinctBy(a => a.Channel.ToString()[0]).Select(a => a.Channel.ToString()[0]).ToArray();
+            // Generate each bands KMZ
+            foreach (char band in bands)
+            {
+                // Export to KMZ
+                var outputKML = new Output.KML.Manager(
+                    configSection: generalConfig.GetSection("outputs:kml"),
+                    subscribers: finalSubResults,
+                    towers: towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)),
+                    accesspoints: apInfo.Values.Where(a => a.Channel.ToString()[0] == band).ToList()
+                    );
+                outputKML.GenerateKML();
+                outputKML.Save($"{band.ToString()}Ghz");
+            }
 
+            // Export to PTPPRJ
             var outputPTPPRJ = new Output.PTPPRJ.Manager(generalConfig.GetSection("outputs:ptpprj"),
                 finalSubResults,
                 towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)),
                 apInfo.Values.ToList());
 
             outputPTPPRJ.Generate();
+            outputPTPPRJ.Save();
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadLine();
+        }
+
+        static AccessPointRadioInfo generateAccessPoint(CnStatistics ap, string ip, string sysContact)
+        {
+            var apRI = new AccessPointRadioInfo()
+            {
+                Name = ap.name,
+                Esn = ap.mac,
+                IP = ip,
+                ConnectedSMs = ap.connected_sms,
+                Lan = ap.lan_status,
+                Channel = Double.Parse(ap.radio.frequency),
+                ColorCode = Byte.Parse(ap.radio.color_code),
+                SyncState = ap.radio.sync_state,
+                TxPower = ap.radio.tx_power ?? 0,
+                Tower = ap.tower,
+                Azimuth = 0,
+                Downtilt = 0,
+                Uptime = TimeSpan.FromSeconds(Double.Parse(ap.status_time))
+            };
+
+            // Parse the sysContact into Azimuth and Downtilt
+            var azdtMatch = Regex.Match(sysContact, @"\[(?<azimuth>\d*)AZ\s(?<downtilt>\d*)DT\]");
+            if (azdtMatch.Success)
+            {
+                // If we can parse the azimuth and downtilt save it to the AP if we can't set it to an invalid value so we know it wasn't good (0 would be a valid value so would -1)
+                var goodAzimuth = Int32.TryParse(azdtMatch.Groups["azimuth"].ToString(), out int azimuth);
+                var goodDowntilt = Int32.TryParse(azdtMatch.Groups["downtilt"].ToString(), out int downtilt);
+                apRI.Azimuth = goodAzimuth ? azimuth : 999;
+                apRI.Downtilt = goodDowntilt ? downtilt : 999;
+            }
+
+            return apRI;
         }
 
         /// <summary>
@@ -188,6 +220,10 @@ namespace cnMaestroReporting.CLI
                 Model = smDevice.product,
                 SmEPL = Math.Round(smEPL, 2),
                 SmAPL = smStats.radio.dl_rssi ?? -1,
+                SmSNRH = smStats.radio.dl_snr_h ?? -1,
+                SmSNRV = smStats.radio.dl_snr_v ?? -1,
+                ApSNRH = smStats.radio.ul_snr_h ?? -1,
+                ApSNRV = smStats.radio.ul_snr_v ?? -1,
                 SmImbalance = smStats.radio.dl_rssi_imbalance ?? 0,
                 ApModel = apDevice.product,
                 ApEPL = Math.Round(apEPL, 2),
@@ -217,5 +253,15 @@ namespace cnMaestroReporting.CLI
             // Return overall config so we can pass it to plugins
             return configuration;
         }
+
+        /// <summary>
+        /// Output for thread reporting
+        /// </summary>
+        /// <param name="progress"></param>
+        private static void ReportProgress(cnMaestroReporting.SNMP.SnmpProgress progress)
+        {
+            Console.WriteLine($"SNMP Update: {progress.CurrentProgressMessage} ({progress.CurrentProgressAmount}/{progress.TotalProgressAmount})");
+        }
+
     }
 }

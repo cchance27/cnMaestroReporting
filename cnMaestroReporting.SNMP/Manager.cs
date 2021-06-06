@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -101,6 +102,8 @@ namespace cnMaestroReporting.SNMP
             } 
         }
 
+
+
         /// <summary>
         /// Async method for getting a param array of oids results from a list of IPs. 
         /// We can dump as many IP's and OIDs into this as we want and it will respect 
@@ -108,11 +111,12 @@ namespace cnMaestroReporting.SNMP
         /// </summary>
         /// <param name="ipAddresses"></param>
         /// <param name="oids"></param>
-        public async Task<IDictionary<string, IDictionary<string, string>>> GetMultipleDeviceOidsAsync(IEnumerable<string> ipAddresses, params string[] oids)
+        public async Task<IDictionary<string, IDictionary<string, string>>> GetMultipleDeviceOidsAsync(IEnumerable<string> ipAddresses, IProgress<SnmpProgress> progress, params string[] oids)
         {
             var taskList = new List<Task>();
             ConcurrentDictionary<string, IDictionary<string, string>> allResults = new ConcurrentDictionary<string, IDictionary<string, string>>();
-
+            int done = 0;
+            int total = ipAddresses.Count();
             foreach (var ip in ipAddresses) {
                 await _taskThrottle.WaitAsync(); // Wait for a free semaphore
                 taskList.Add(
@@ -122,11 +126,15 @@ namespace cnMaestroReporting.SNMP
                             try
                             {
                                 allResults.TryAdd(ip, GetOids(ip, oids)); // GetOids and then add them to our dictionary to be returned at the end.
+                                done++;
+                                progress.Report(new SnmpProgress() { CurrentProgressMessage = $"Fetched: {ip}", CurrentProgressAmount = done, TotalProgressAmount = total });
                             }
                             catch
                             {
                                 // We got a failed snmp we should do something
                                 // TODO: constructor should take a output for logging that we can write to.
+                                done++;
+                                progress.Report(new SnmpProgress() { CurrentProgressMessage = $"Errored: {ip}", CurrentProgressAmount = done, TotalProgressAmount = total });
                             }
                             finally
                             {
@@ -135,6 +143,7 @@ namespace cnMaestroReporting.SNMP
                         }));
             }
             Task.WaitAll(taskList.ToArray());
+            progress.Report(new SnmpProgress() { CurrentProgressMessage = $"Complete", CurrentProgressAmount = done, TotalProgressAmount = total });
 
             return allResults;
         }

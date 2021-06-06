@@ -72,6 +72,18 @@ namespace cnMaestroReporting.Domain
         public double ApAPL { get; set; }
 
         [KMLConfig(Hidden = true)]
-        public double ApPowerDiff { get => Math.Round(Math.Abs(ApEPL - ApAPL), 2); }        
+        public double ApPowerDiff { get => Math.Round(Math.Abs(ApEPL - ApAPL), 2); }   
+        
+        [KMLConfig(Name = "SM SNR Horizontal")]
+        public int SmSNRH { get; set; }
+
+        [KMLConfig(Name = "SM SNR Vertical")]
+        public int SmSNRV { get; set; }
+
+        [KMLConfig(Name = "AP SNR Horizontal")]
+        public int ApSNRH { get; set; }
+
+        [KMLConfig(Name = "AP SNR Vertical")]
+        public int ApSNRV { get; set; }
     }
 }

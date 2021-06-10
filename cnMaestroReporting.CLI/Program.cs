@@ -14,25 +14,25 @@ namespace cnMaestroReporting.CLI
 {
     internal class Program
     {
-        private static cnMaestroAPI.Manager cnManager { get; set; } // Our access to cnMaestro
-        private static RadioConfig cambiumRadios; // Holds the model configurations we use for various cambium devices.
-        private static IConfigurationRoot generalConfig; // Holds the general config for the app and plugins
+        private static cnMaestroAPI.Manager CnManager { get; set; } // Our access to cnMaestro
+        private static RadioConfig _cambiumRadios; // Holds the model configurations we use for various cambium devices.
+        private static IConfigurationRoot _generalConfig; // Holds the general config for the app and plugins
 
         private static async Task Main(string[] args)
         {
-            generalConfig = FetchConfiguration(); // Load our appSettings into generalConfig
+            _generalConfig = FetchConfiguration(); // Load our appSettings into generalConfig
 
             //cnManager sets up generic settings and configuration for the overall connection to cnMaestro (authentication)
-            cnManager = new cnMaestroAPI.Manager(generalConfig.GetSection("cnMaestro"));
-            await cnManager.ConnectAsync();
+            CnManager = new cnMaestroAPI.Manager(_generalConfig.GetSection("cnMaestro"));
+            await CnManager.ConnectAsync();
 
             // Initialize our SNMP Controller
-            var snmp = new SNMP.Manager(generalConfig.GetSection("snmp"));
+            var snmp = new SNMP.Manager(_generalConfig.GetSection("snmp"));
 
             // Get all the device info from cnMaestro we will be using for the program loop
-            var towers = await cnManager.Api.GetTowersAsync();
-            var deviceStatTask = cnManager.Api.GetMultipleDevStatsAsync();
-            var deviceTask = cnManager.Api.GetMultipleDevicesAsync();
+            var towers = await CnManager.Api.GetTowersAsync();
+            var deviceStatTask = CnManager.Api.GetMultipleDevStatsAsync();
+            var deviceTask = CnManager.Api.GetMultipleDevicesAsync();
             Task.WaitAll(deviceTask, deviceStatTask);
 
             //Dictionary of all Devices so we can lookup by mac address
@@ -42,7 +42,7 @@ namespace cnMaestroReporting.CLI
                 .ToDictionary(dev => dev.mac);
 
             // List of online SM's that we can use for snmp polling
-            var smIPs = deviceStatTask.Result
+            var subscriberIps = deviceStatTask.Result
                 .DistinctBy(sm => sm.mac)
                 .Where(dev => dev.mode == "sm" && dev.status == "online")
                 .Select(dev => devices[dev.mac].ip).ToArray();
@@ -55,9 +55,9 @@ namespace cnMaestroReporting.CLI
 
             // Async fetch all the SNMP From devices and return us a Dictionary<ipAddressStr, Dictionary<OIDstr, ValueStr>>
             var progressIndicator = new Progress<SNMP.SnmpProgress>(ReportProgress);
-            var snmpResultsSMTask = snmp.GetMultipleDeviceOidsAsync(smIPs, progressIndicator, SNMP.OIDs.smAirDelayNs, SNMP.OIDs.smFrequencyHz); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
-            var snmpResultsAPTask = snmp.GetMultipleDeviceOidsAsync(apIPs, progressIndicator, SNMP.OIDs.sysContact); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
-            Task.WaitAll(snmpResultsSMTask, snmpResultsAPTask);
+            var snmpResultsSmTask = snmp.GetMultipleDeviceOidsAsync(subscriberIps, progressIndicator, SNMP.OIDs.smAirDelayNs, SNMP.OIDs.smFrequencyHz); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
+            var snmpResultsApTask = snmp.GetMultipleDeviceOidsAsync(apIPs, progressIndicator, SNMP.OIDs.sysContact); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
+            Task.WaitAll(snmpResultsSmTask, snmpResultsApTask);
 
             // Enumerable of OnlineAPs
             var onlineAPs = deviceStatTask.Result
@@ -75,22 +75,22 @@ namespace cnMaestroReporting.CLI
                 ap => generateAccessPoint(
                     ap, 
                     devices[ap.mac].ip, 
-                    snmpResultsAPTask.Result[devices[ap.mac].ip][SNMP.OIDs.sysContact]
+                    snmpResultsApTask.Result[devices[ap.mac].ip][SNMP.OIDs.sysContact]
                     ));
 
             // Nice select that returns all of our generated SM Info.
             List<SubscriberRadioInfo> finalSubResults = deviceStatTask.Result
-                .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResultsSMTask.Result.Keys.Contains(devices[dev.mac].ip))
+                .Where(dev => dev.mode == "sm" && dev.status == "online" && snmpResultsSmTask.Result.Keys.Contains(devices[dev.mac].ip))
                 .DistinctBy(sm => sm.mac)
                 .Select((smStat) => GenerateSmRadioInfo(
                     apDevice: devices[smStat.ap_mac],
                     apInfo: apInfo[smStat.ap_mac],
                     smDevice: devices[smStat.mac],
                     smStats: smStat,
-                    smSnmp: snmpResultsSMTask.Result[devices[smStat.mac].ip])).ToList();
+                    smSnmp: snmpResultsSmTask.Result[devices[smStat.mac].ip])).ToList();
 
             // Export to XLSX
-            var outputXLSX = new Output.XLSX.Manager(generalConfig.GetSection("outputs:xlsx"));
+            var outputXLSX = new Output.XLSX.Manager(_generalConfig.GetSection("outputs:xlsx"));
             outputXLSX.Generate(finalSubResults);
             outputXLSX.Save();
 
@@ -101,7 +101,7 @@ namespace cnMaestroReporting.CLI
             {
                 // Export to KMZ
                 var outputKML = new Output.KML.Manager(
-                    configSection: generalConfig.GetSection("outputs:kml"),
+                    configSection: _generalConfig.GetSection("outputs:kml"),
                     subscribers: finalSubResults,
                     towers: towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)),
                     accesspoints: apInfo.Values.Where(a => a.Channel.ToString()[0] == band).ToList()
@@ -111,7 +111,7 @@ namespace cnMaestroReporting.CLI
             }
 
             // Export to PTPPRJ
-            var outputPTPPRJ = new Output.PTPPRJ.Manager(generalConfig.GetSection("outputs:ptpprj"),
+            var outputPTPPRJ = new Output.PTPPRJ.Manager(_generalConfig.GetSection("outputs:ptpprj"),
                 finalSubResults,
                 towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)),
                 apInfo.Values.ToList());
@@ -176,28 +176,28 @@ namespace cnMaestroReporting.CLI
             // If we have smGain from cnMaestro let's use it if not fall back to our configured value.
             Int32.TryParse(smStats.gain, out int smGain);
             if (smGain <= 0)
-                smGain = cambiumRadios.SM[smDevice.product].AntennaGain;
+                smGain = _cambiumRadios.SM[smDevice.product].AntennaGain;
 
             // Odd irregularity where cnMaestro sends a -30 let's assume max Tx since it's obviously transmitting as we have a SM to calculate on the panel.
             var apTx = apInfo.TxPower;
             if (apTx <= 0)
-                apTx = cambiumRadios.AP[apDevice.product].MaxTransmit;
+                apTx = _cambiumRadios.AP[apDevice.product].MaxTransmit;
 
             // smEPL === The power transmitted from the AP and what we expect to see on the SM
             var smEPL = RFCalc.EstimatedPowerLevel(
                 smDistanceM,
                 smFrequencyHz,
                 0,
-                Tx: cambiumRadios.AP[apDevice.product].Radio(apTx),
-                Rx: cambiumRadios.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain));
+                Tx: _cambiumRadios.AP[apDevice.product].Radio(apTx),
+                Rx: _cambiumRadios.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain));
 
             // apEPL === The power transmitted from the SM and what we expect to see on the AP
             var apEPL = RFCalc.EstimatedPowerLevel(
                 smDistanceM,
                 smFrequencyHz,
                 0,
-                Tx: cambiumRadios.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain),
-                Rx: cambiumRadios.AP[apDevice.product].Radio(apTx));
+                Tx: _cambiumRadios.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain),
+                Rx: _cambiumRadios.AP[apDevice.product].Radio(apTx));
 
             Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
 
@@ -229,8 +229,8 @@ namespace cnMaestroReporting.CLI
                 ApEPL = Math.Round(apEPL, 2),
                 ApAPL = smStats.radio.ul_rssi ?? -1,
                 ApTxPower = apTx,
-                SmTxPower = smStats.radio.tx_power ?? cambiumRadios.SM[smDevice.product].MaxTransmit,
-                SmMaxTxPower = cambiumRadios.SM[smDevice.product].MaxTransmit,
+                SmTxPower = smStats.radio.tx_power ?? _cambiumRadios.SM[smDevice.product].MaxTransmit,
+                SmMaxTxPower = _cambiumRadios.SM[smDevice.product].MaxTransmit,
             };
         }
 
@@ -248,7 +248,7 @@ namespace cnMaestroReporting.CLI
             IConfigurationRoot configuration = builder.Build();
 
             // Setup config for the main eventloop
-            cambiumRadios = configuration.Get<RadioConfig>();
+            _cambiumRadios = configuration.Get<RadioConfig>();
 
             // Return overall config so we can pass it to plugins
             return configuration;

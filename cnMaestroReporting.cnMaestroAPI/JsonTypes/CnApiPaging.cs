@@ -1,16 +1,16 @@
-﻿using Newtonsoft.Json;
+﻿using System.Text.Json.Serialization;
 
 namespace cnMaestroReporting.cnMaestroAPI.JsonType
 {
     public struct CnApiPaging
     {
-        [JsonProperty("total")]
+        [JsonPropertyName("total")]
         public readonly int Total;
 
-        [JsonProperty("limit")]
+        [JsonPropertyName("limit")]
         public readonly int Limit;
 
-        [JsonProperty("offset")]
+        [JsonPropertyName("offset")]
         public readonly int Offset;
     }
 }

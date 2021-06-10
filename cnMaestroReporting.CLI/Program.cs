@@ -30,9 +30,9 @@ namespace cnMaestroReporting.CLI
             var snmp = new SNMP.Manager(_generalConfig.GetSection("snmp"));
 
             // Get all the device info from cnMaestro we will be using for the program loop
-            var towers = await CnManager.Api.GetTowersAsync();
-            var deviceStatTask = CnManager.Api.GetMultipleDevStatsAsync();
-            var deviceTask = CnManager.Api.GetMultipleDevicesAsync();
+            var towers = await CnManager.GetTowersAsync();
+            var deviceStatTask = CnManager.GetMultipleDevStatsAsync();
+            var deviceTask = CnManager.GetMultipleDevicesAsync();
             Task.WaitAll(deviceTask, deviceStatTask);
 
             //Dictionary of all Devices so we can lookup by mac address

@@ -1,13 +1,13 @@
-﻿using Newtonsoft.Json;
+﻿using System.Text.Json.Serialization;
 
 namespace cnMaestroReporting.cnMaestroAPI.cnDataType
 {
     public struct CnLocation
     {
-        [JsonProperty("type")]
+        [JsonPropertyName("type")]
         public readonly string type;
 
-        [JsonProperty("coordinates")]
+        [JsonPropertyName("coordinates")]
         public readonly decimal[] coordinates;
     }
 }

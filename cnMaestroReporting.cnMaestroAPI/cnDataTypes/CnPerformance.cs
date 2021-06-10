@@ -1,133 +1,133 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Text.Json.Serialization;
 
 namespace cnMaestroReporting.cnMaestroAPI.cnDataType
 {
     public struct CnPerformance : ICnMaestroDataType
     {
-        [JsonProperty("mac")]
+        [JsonPropertyName("mac")]
         public readonly string mac;
 
-        [JsonProperty("managed_account")]
+        [JsonPropertyName("managed_account")]
         public readonly string managed_account;
 
-        [JsonProperty("mode")]
+        [JsonPropertyName("mode")]
         public readonly string mode;
 
-        [JsonProperty("name")]
+        [JsonPropertyName("name")]
         public readonly string name;
 
-        [JsonProperty("network")]
+        [JsonPropertyName("network")]
         public readonly string network;
 
-        [JsonProperty("online_duration")]
+        [JsonPropertyName("online_duration")]
         public readonly int? online_duration;
 
-        [JsonProperty("site")]
+        [JsonPropertyName("site")]
         public readonly string site;
 
-        [JsonProperty("sm_count")]
+        [JsonPropertyName("sm_count")]
         public readonly Dictionary<string, double> sm_count;
 
-        [JsonProperty("sm_drops")]
+        [JsonPropertyName("sm_drops")]
         public readonly Dictionary<string, double> sm_drops;
 
-        [JsonProperty("timestamp")]
+        [JsonPropertyName("timestamp")]
         public readonly string timestamp;
 
-        [JsonProperty("tower")]
+        [JsonPropertyName("tower")]
         public readonly string tower;
 
-        [JsonProperty("type")]
+        [JsonPropertyName("type")]
         public readonly string type;
 
-        [JsonProperty("uptime")]
+        [JsonPropertyName("uptime")]
         public readonly string uptime;
 
-        [JsonProperty("radio")]
+        [JsonPropertyName("radio")]
         public readonly CnFixedRadioPerformance radio;
     }
 
     public class CnFixedRadioPerformance
     {
-        [JsonProperty("dl_frame_utilization")]
+        [JsonPropertyName("dl_frame_utilization")]
         public readonly ReadOnlyDictionary<byte, double> dl_frame_utilization;
 
-        [JsonProperty("dl_kbits")]
+        [JsonPropertyName("dl_kbits")]
         public readonly ReadOnlyDictionary<byte, Int64?> dl_kbits;
 
-        [JsonProperty("dl_mcs")]
+        [JsonPropertyName("dl_mcs")]
         public readonly ReadOnlyDictionary<byte, int?> dl_mcs;
 
-        [JsonProperty("dl_modulation")]
+        [JsonPropertyName("dl_modulation")]
         public readonly ReadOnlyDictionary<byte, string> dl_modulation;
 
-        [JsonProperty("dl_pkts")]
+        [JsonPropertyName("dl_pkts")]
         public readonly ReadOnlyDictionary<byte, Int64?> dl_pkts;
 
-        [JsonProperty("dl_pkts_loss")]
+        [JsonPropertyName("dl_pkts_loss")]
         public readonly ReadOnlyDictionary<byte, Int64?> dl_pkts_loss;
 
-        [JsonProperty("dl_retransmits_pct")]
+        [JsonPropertyName("dl_retransmits_pct")]
         public readonly ReadOnlyDictionary<byte, int?> dl_retransmits_pct;
 
-        [JsonProperty("dl_rssi")]
+        [JsonPropertyName("dl_rssi")]
         public readonly ReadOnlyDictionary<byte, double> dl_rssi;
 
-        [JsonProperty("dl_rssi_imbalance")]
+        [JsonPropertyName("dl_rssi_imbalance")]
         public readonly ReadOnlyDictionary<byte, double> dl_rssi_imbalance;
 
-        [JsonProperty("dl_snr")]
+        [JsonPropertyName("dl_snr")]
         public readonly ReadOnlyDictionary<byte, int?> dl_snr;
 
-        [JsonProperty("dl_snr_v")]
+        [JsonPropertyName("dl_snr_v")]
         public readonly ReadOnlyDictionary<byte, int?> dl_snr_v;
 
-        [JsonProperty("dl_snr_h")]
+        [JsonPropertyName("dl_snr_h")]
         public readonly ReadOnlyDictionary<byte, int?> dl_snr_h;
 
-        [JsonProperty("dl_throughput")]
+        [JsonPropertyName("dl_throughput")]
         public readonly ReadOnlyDictionary<byte, Int64?> dl_throughput;
 
-        [JsonProperty("ul_frame_utilization")]
+        [JsonPropertyName("ul_frame_utilization")]
         public readonly ReadOnlyDictionary<byte, double?> ul_frame_utilization;
 
-        [JsonProperty("ul_kbits")]
+        [JsonPropertyName("ul_kbits")]
         public readonly ReadOnlyDictionary<byte, Int64?> ul_kbits;
 
-        [JsonProperty("ul_mcs")]
+        [JsonPropertyName("ul_mcs")]
         public readonly ReadOnlyDictionary<byte, int?> ul_mcs;
 
-        [JsonProperty("ul_modulation")]
+        [JsonPropertyName("ul_modulation")]
         public readonly ReadOnlyDictionary<byte, string> ul_modulation;
 
-        [JsonProperty("ul_pkts")]
+        [JsonPropertyName("ul_pkts")]
         public readonly ReadOnlyDictionary<byte, Int64?> ul_pkts;
 
-        [JsonProperty("ul_pkts_loss")]
+        [JsonPropertyName("ul_pkts_loss")]
         public readonly ReadOnlyDictionary<byte, Int64?> ul_pkts_loss;
 
-        [JsonProperty("ul_retransmits_pct")]
+        [JsonPropertyName("ul_retransmits_pct")]
         public readonly ReadOnlyDictionary<byte, int?> ul_retransmits_pct;
 
-        [JsonProperty("ul_rssi")]
+        [JsonPropertyName("ul_rssi")]
         public readonly ReadOnlyDictionary<byte, double?> ul_rssi;
 
-        [JsonProperty("ul_rssi_imbalance")]
+        [JsonPropertyName("ul_rssi_imbalance")]
         public readonly ReadOnlyDictionary<byte, double?> ul_rssi_imbalance;
 
-        [JsonProperty("ul_snr")]
+        [JsonPropertyName("ul_snr")]
         public readonly ReadOnlyDictionary<byte, int?> ul_snr;
 
-        [JsonProperty("ul_snr_v")]
+        [JsonPropertyName("ul_snr_v")]
         public readonly ReadOnlyDictionary<byte, int?> ul_snr_v;
 
-        [JsonProperty("ul_snr_h")]
+        [JsonPropertyName("ul_snr_h")]
         public readonly ReadOnlyDictionary<byte, int?> ul_snr_h;
 
-        [JsonProperty("ul_throughput")]
+        [JsonPropertyName("ul_throughput")]
         public readonly ReadOnlyDictionary<byte, Int64?> ul_throughput;
     }
 }

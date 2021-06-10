@@ -1,95 +1,96 @@
-﻿using Newtonsoft.Json;
+﻿
 using System.Collections.ObjectModel;
+using System.Text.Json.Serialization;
 
 namespace cnMaestroReporting.cnMaestroAPI.cnDataType
 {
     public struct CnDevice : ICnMaestroDataType
     {
-        [JsonProperty("ap_group")]
+        [JsonPropertyName("ap_group")]
         public readonly string ap_group;
 
-        [JsonProperty("country")]
+        [JsonPropertyName("country")]
         public readonly string country;
 
-        [JsonProperty("description")]
+        [JsonPropertyName("description")]
         public readonly string description;
 
-        [JsonProperty("config")]
+        [JsonPropertyName("config")]
         public readonly CnDeviceConfig config;
 
-        [JsonProperty("hardware_version")]
+        [JsonPropertyName("hardware_version")]
         public readonly string hardware_version;
 
-        [JsonProperty("inactive_software_version")]
+        [JsonPropertyName("inactive_software_version")]
         public readonly string inactive_software_version;
 
-        [JsonProperty("ip")]
+        [JsonPropertyName("ip")]
         public readonly string ip;
 
-        [JsonProperty("location")]
+        [JsonPropertyName("location")]
         public readonly CnLocation location;
 
-        [JsonProperty("mac")]
+        [JsonPropertyName("mac")]
         public readonly string mac;
 
-        [JsonProperty("managed_account")]
+        [JsonPropertyName("managed_account")]
         public readonly string managed_account;
 
-        [JsonProperty("msn")]
+        [JsonPropertyName("msn")]
         public readonly string msn;
 
-        [JsonProperty("name")]
+        [JsonPropertyName("name")]
         public readonly string name;
 
-        [JsonProperty("network")]
+        [JsonPropertyName("network")]
         public readonly string network;
 
-        [JsonProperty("product")]
+        [JsonPropertyName("product")]
         public readonly string product;
 
-        [JsonProperty("last_reboot_reason")]
+        [JsonPropertyName("last_reboot_reason")]
         public readonly string last_reboot_reason;
 
-        [JsonProperty("maximum_range")]
+        [JsonPropertyName("maximum_range")]
         public readonly string maximum_range;
 
-        [JsonProperty("registration_date")]
+        [JsonPropertyName("registration_date")]
         public readonly string registration_date;
 
-        [JsonProperty("site")]
+        [JsonPropertyName("site")]
         public readonly string site;
 
-        [JsonProperty("site_id")]
+        [JsonPropertyName("site_id")]
         public readonly string site_id;
 
-        [JsonProperty("software_version")]
+        [JsonPropertyName("software_version")]
         public readonly string software_version;
 
-        [JsonProperty("status")]
+        [JsonPropertyName("status")]
         public readonly string status;
 
-        [JsonProperty("status_time")]
+        [JsonPropertyName("status_time")]
         public readonly string status_time;
 
-        [JsonProperty("tower")]
+        [JsonPropertyName("tower")]
         public readonly string tower;
 
-        [JsonProperty("type")]
+        [JsonPropertyName("type")]
         public readonly string type;
     }
 
     public struct CnDeviceConfig
     {
-        [JsonProperty("sync_reason")]
+        [JsonPropertyName("sync_reason")]
         public readonly string sync_reason;
 
-        [JsonProperty("sync_status")]
+        [JsonPropertyName("sync_status")]
         public readonly bool sync_status;
 
-        [JsonProperty("variables")]
+        [JsonPropertyName("variables")]
         public readonly ReadOnlyDictionary<string, string> variables;
 
-        [JsonProperty("version")]
+        [JsonPropertyName("version")]
         public readonly int version;
     }
 }

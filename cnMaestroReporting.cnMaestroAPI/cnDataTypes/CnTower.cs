@@ -1,22 +1,22 @@
-﻿using Newtonsoft.Json;
+﻿using System.Text.Json.Serialization;
 
 namespace cnMaestroReporting.cnMaestroAPI.cnDataType
 {
     public struct CnTower: ICnMaestroDataType
     {
-        [JsonProperty("id")]
+        [JsonPropertyName("id")]
         public readonly string Id;
 
-        [JsonProperty("managed_account")]
+        [JsonPropertyName("managed_account")]
         public readonly string ManagedAccount;
 
-        [JsonProperty("name")]
+        [JsonPropertyName("name")]
         public readonly string Name;
 
-        [JsonProperty("location")]
+        [JsonPropertyName("location")]
         public readonly CnLocation Location;
 
-        [JsonProperty("network")]
+        [JsonPropertyName("network")]
         public readonly string Network;
     }
 }

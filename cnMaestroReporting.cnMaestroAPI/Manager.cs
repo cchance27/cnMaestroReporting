@@ -1,6 +1,7 @@
-﻿using cnMaestroReporting.cnMaestroAPI.JsonType;
+﻿using cnMaestroReporting.cnMaestroAPI.cnDataType;
+using cnMaestroReporting.cnMaestroAPI.JsonType;
 using Microsoft.Extensions.Configuration;
-using Newtonsoft.Json;
+using System.Text.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -25,8 +26,6 @@ namespace cnMaestroReporting.cnMaestroAPI
         private TextWriter _outputLog { get; set; }
         private HttpClient _client { get; set; }
 
-        public Api Api { get; set; }
-
         /// <summary>
         /// Constructor that creates a manager with all the basic values provided.
         /// </summary>
@@ -36,7 +35,6 @@ namespace cnMaestroReporting.cnMaestroAPI
         /// <param name="apiFetchLimit"></param>
         /// <param name="threads"></param>
         /// <param name="logger"></param>
-
         public void SetupManager(string clientID, string clientSecret, string apiDomain, int apiFetchLimit = 100, int threads = 4, TextWriter logger = null)
         {
             if (_credentials == null)
@@ -96,16 +94,12 @@ namespace cnMaestroReporting.cnMaestroAPI
             string responseText = await response.Content.ReadAsStringAsync();
             if (response.IsSuccessStatusCode)
             {
-                Dictionary<string, string> tokenEndpointDecoded = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseText);
+                Dictionary<string, string> tokenEndpointDecoded = JsonSerializer.Deserialize<Dictionary<string, string>>(responseText);
                 _client.DefaultRequestHeaders.Add("Authorization", $"Bearer { tokenEndpointDecoded["access_token"] }");
-            } else
-            {
-                _outputLog.WriteLine($"Login Error Response: { responseText }");
-                response.EnsureSuccessStatusCode();
-            }
-
-            if (Api == null)
-                Api = new Api(this);
+                return;
+            } 
+            _outputLog.WriteLine($"Login Error Response: { responseText }");
+            response.EnsureSuccessStatusCode();
         }
 
         /// <summary>
@@ -130,14 +124,10 @@ namespace cnMaestroReporting.cnMaestroAPI
             }
 
             string responseText = await response.Content.ReadAsStringAsync();
-            if (response.IsSuccessStatusCode)
-            {
-                return JsonConvert.DeserializeObject<CnApiResponse<T>>(responseText);
-            }
-            else
-            {
-                throw new WebException(responseText);
-            }
+            if (response.IsSuccessStatusCode) 
+                return JsonSerializer.Deserialize<CnApiResponse<T>>(responseText);
+            
+            throw new WebException(responseText);
         }
 
         /// <summary>
@@ -194,6 +184,100 @@ namespace cnMaestroReporting.cnMaestroAPI
             Task.WaitAll(taskList.ToArray());
 
             return results.ToList<T>();
+        }
+
+        #region ------ API Calls --------
+        /// <summary>
+        /// Returns a list of tasks that are fetching all of the networks
+        /// </summary>
+        /// <param name="filter"></param>
+        /// <returns></returns>
+        public Task<IList<CnTower>> GetNetworksAsync(string filter = null) =>
+            GetFullApiResultsAsync<CnTower>("/networks", filter);
+
+        /// <summary>
+        /// Returns a a list of tasks that are fetching all of the towers available on the network
+        /// </summary>
+        /// <param name="network"></param>
+        /// <param name="filter"></param>
+        /// <returns></returns>
+        public Task<IList<CnTower>> GetTowersAsync() =>
+            GetFullApiResultsAsync<CnTower>($"/networks/{settings.Network}/towers");
+
+        /// <summary>
+        /// Returns a list of devices based on a filter
+        /// </summary>
+        /// <param name="macAddress"></param>
+        /// <param name="filter"></param>
+        /// <returns></returns>
+        public Task<IList<CnDevice>> GetMultipleDevicesAsync(string filter = null) =>
+            GetFullApiResultsAsync<CnDevice>($"/devices", TowerAndFiltersToQueryString(settings.Tower, filter));
+
+        /// <summary>
+        /// Return a single device by macaddress
+        /// </summary>
+        /// <param name="macAddress"></param>
+        /// <param name="filter"></param>
+        /// <returns></returns>
+        public async Task<CnDevice> GetSingleDeviceAsync(string macAddress, string filter = null) => 
+            (await GetFullApiResultsAsync<CnDevice>($"/devices/{macAddress}", filter))
+                .FirstOrDefault<CnDevice>();
+
+        /// <summary>
+        /// Return device current last reported statistics
+        /// </summary>
+        /// <param name="macAddress"></param>
+        /// <param name="filter"></param>
+        /// <returns></returns>
+        public async Task<CnStatistics> GetDeviceStatsAsync(string macAddress, string filter = null) =>
+            (await GetFullApiResultsAsync<CnStatistics>($"/devices/{macAddress}/statistics", filter))
+            .FirstOrDefault<CnStatistics>();
+
+        /// <summary>
+        /// Returns a list of devices statistics based on a filter
+        /// </summary>
+        /// <param name="macAddress"></param>
+        /// <param name="filter"></param>
+        /// <returns></returns>
+        public Task<IList<CnStatistics>> GetMultipleDevStatsAsync(string filter = "") => 
+            GetFullApiResultsAsync<CnStatistics>($"/devices/statistics", TowerAndFiltersToQueryString(settings.Tower, filter));
+
+        /// <summary>
+        /// Return a list of performance from a device between 2 dates, it's returned as an array of days and hours.
+        /// </summary>
+        /// <param name="macAddress"></param>
+        /// <param name="startTime"></param>
+        /// <param name="endTime"></param>
+        /// <returns></returns>
+        public Task<IList<CnPerformance>> GetDevicePerfAsync(string macAddress, DateTime startTime, DateTime endTime) =>
+            GetFullApiResultsAsync<CnPerformance>($"/devices/{macAddress}/performance", 
+                $"start_time={startTime.ToString("yyyy-MM-ddTHH:mm:ss.fffffffK")}&stop_time={endTime.ToString("yyyy-MM-ddTHH:mm:ss.fffffffK")}");
+#endregion
+
+        private static string TowerAndFiltersToQueryString(string towerFilter, string filter)
+        {
+            // TODO: Fix the hacky stuff and make it so that we can pass dictionary of filters instead of strings.
+            // Hacky way of doing this but should work. Grabbing the tower to filter by from config and combining with any passed filters.
+            if (String.IsNullOrWhiteSpace(filter) == false)
+            {
+                // We have a custom filter
+                if (String.IsNullOrWhiteSpace(towerFilter) == false)
+                {
+                    // We also have a towerFilter from config
+                    filter = "tower=" + Uri.EscapeDataString(towerFilter) + "&" + filter;
+                }
+            }
+            else
+            {
+                // We don't have a custom filter
+                if (String.IsNullOrWhiteSpace(towerFilter) == false)
+                {
+                    // We also have a towerFilter from config
+                    filter = "tower=" + Uri.EscapeDataString(towerFilter);
+                }
+            }
+
+            return filter;
         }
     }
 }

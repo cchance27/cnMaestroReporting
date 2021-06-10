@@ -1,14 +1,14 @@
-﻿using Newtonsoft.Json;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace cnMaestroReporting.cnMaestroAPI.JsonType
 {
     public struct CnApiResponse<T>
     {
-        [JsonProperty("paging")]
+        [JsonPropertyName("paging")]
         public CnApiPaging paging;
 
-        [JsonProperty("data")]
+        [JsonPropertyName("data")]
         public T[] data;
     }
 }

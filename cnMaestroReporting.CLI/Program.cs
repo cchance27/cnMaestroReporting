@@ -23,8 +23,8 @@ namespace cnMaestroReporting.CLI
             _generalConfig = FetchConfiguration(); // Load our appSettings into generalConfig
 
             //cnManager sets up generic settings and configuration for the overall connection to cnMaestro (authentication)
-            CnManager = new cnMaestroAPI.Manager(_generalConfig.GetSection("cnMaestro"));
-            await CnManager.ConnectAsync();
+            var cnMaestroConfigSection = cnMaestroAPI.Manager.GenerateConfig(_generalConfig.GetSection("cnMaestro"));
+            CnManager = new cnMaestroAPI.Manager(cnMaestroConfigSection);
 
             // Initialize our SNMP Controller
             var snmp = new SNMP.Manager(_generalConfig.GetSection("snmp"));
@@ -103,7 +103,7 @@ namespace cnMaestroReporting.CLI
                 var outputKML = new Output.KML.Manager(
                     configSection: _generalConfig.GetSection("outputs:kml"),
                     subscribers: finalSubResults,
-                    towers: towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)),
+                    towers: towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.name, tower.location)),
                     accesspoints: apInfo.Values.Where(a => a.Channel.ToString()[0] == band).ToList()
                     );
                 outputKML.GenerateKML();
@@ -113,7 +113,7 @@ namespace cnMaestroReporting.CLI
             // Export to PTPPRJ
             var outputPTPPRJ = new Output.PTPPRJ.Manager(_generalConfig.GetSection("outputs:ptpprj"),
                 finalSubResults,
-                towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.Name, tower.Location)),
+                towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.name, tower.location)),
                 apInfo.Values.ToList());
 
             outputPTPPRJ.Generate();

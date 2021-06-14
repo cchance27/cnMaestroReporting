@@ -13,7 +13,6 @@ using Polly.Contrib.WaitAndRetry;
 using Flurl;
 using Flurl.Http;
 using cnMaestroReporting.cnMaestroAPI.cnDataTypes;
-using Polly.Retry;
 using static cnMaestroReporting.cnMaestroAPI.FlurlExceptionChecks;
 
 namespace cnMaestroReporting.cnMaestroAPI
@@ -126,8 +125,9 @@ public class Manager
             {
                 var request = filter != "" ? apiURL.SetQueryParams(filter) : (Url)apiURL;
                 request.AppendPathSegment(endPoint).WithClient(flurlClient);
-                request.SetQueryParam("limit", 100).SetQueryParam("offset", offset);
-
+                request.SetQueryParam("limit", settings.ApiPageLimit).SetQueryParam("offset", offset);
+                
+                Console.WriteLine($"Using Bearer: {apiBearer}");
                 Console.WriteLine($"Fetching: {request}");
 
                 return await request.WithOAuthBearerToken(apiBearer).GetAsync().ReceiveJson<CnApiResponse<T>>();
@@ -149,6 +149,7 @@ public class Manager
             var taskList = new List<Task>();
             var offset = 0;
 
+            // Threadsafe Bag for storing results
             ConcurrentBag<T> results = new();
 
             // firstCall is made so we get the count we need to pull
@@ -156,40 +157,44 @@ public class Manager
             if (firstCall is null)
                 throw new Exception("cnMaestro Returned no response");
 
+            // Parse our responses into an array of results.
             Array.ForEach<T>(firstCall.data, r => results.Add(r));
 
             // We've got our first page so we now know how many records we have and how many we need total
             var totalToFetch = firstCall.paging.total;
             var recordsFetching = firstCall.data.Length;
 
-            if (totalToFetch > recordsFetching)
+            if (totalToFetch <= recordsFetching)
             {
-                // We still have more to get let's start looping
-                while (recordsFetching <= totalToFetch)
-                {
-                    await taskThrottle.WaitAsync();
+                // First page had all of our results, we're done return.
+                return results.ToList();
+            }
 
-                    taskList.Add(
-                        // This will run in a new thread parallel on threadpool) 
-                        Task.Run(async () =>
-                        {
-                            try
-                            {
-                                Interlocked.Add(ref offset, 100);
+            // We still have more to get let's start looping
+            while (recordsFetching <= totalToFetch)
+            {
+                // Wait for a free thread
+                await taskThrottle.WaitAsync();
 
-                                CnApiResponse<T>? result = await CallApiAsync<T>(endPoint, filter, offset);
+                taskList.Add(
+                    // This will run in a new thread parallel on threadpool) 
+                    Task.Run(async () =>
+                    {
+                        // Safely add our page limit to the offset so all Tasks are calling their correct offset.
+                        Interlocked.Add(ref offset, settings.ApiPageLimit);
 
-                                if (result is not null)
-                                    Array.ForEach<T>(result.data, r => results.Add(r));
-                            }
-                            finally
-                            {
-                                taskThrottle.Release();
-                            }
-                        }));
+                        // Request our next page based on the updated offset
+                        CnApiResponse<T>? apiResponse = await CallApiAsync<T>(endPoint, filter, offset);
 
-                    recordsFetching += firstCall.paging.limit;
-                }
+                        // If we got a response add it to our results ConcurrencyBag
+                        if (apiResponse is not null)
+                            Array.ForEach<T>(apiResponse.data, r => results.Add(r));
+
+                        // Release this task because we're done.
+                        taskThrottle.Release();
+                    }));
+
+                recordsFetching += firstCall.paging.limit;
             }
 
             Task.WaitAll(taskList.ToArray());

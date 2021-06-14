@@ -14,25 +14,24 @@ namespace cnMaestroReporting.CLI
 {
     internal class Program
     {
-        private static cnMaestroAPI.Manager CnManager { get; set; } // Our access to cnMaestro
+        //private static cnMaestroAPI.Manager CnManager { get; set; } // Our access to cnMaestro
         private static RadioConfig _cambiumRadios; // Holds the model configurations we use for various cambium devices.
         private static IConfigurationRoot _generalConfig; // Holds the general config for the app and plugins
 
-        private static async Task Main(string[] args)
+        private static async Task Main()
         {
             _generalConfig = FetchConfiguration(); // Load our appSettings into generalConfig
 
-            //cnManager sets up generic settings and configuration for the overall connection to cnMaestro (authentication)
-            var cnMaestroConfigSection = cnMaestroAPI.Manager.GenerateConfig(_generalConfig.GetSection("cnMaestro"));
-            CnManager = new cnMaestroAPI.Manager(cnMaestroConfigSection);
+            // Create our API Manager
+            var cnManager = new cnMaestroAPI.Manager(_generalConfig.GetSection("cnMaestro"));
 
             // Initialize our SNMP Controller
             var snmp = new SNMP.Manager(_generalConfig.GetSection("snmp"));
 
             // Get all the device info from cnMaestro we will be using for the program loop
-            var towers = await CnManager.GetTowersAsync();
-            var deviceStatTask = CnManager.GetMultipleDevStatsAsync();
-            var deviceTask = CnManager.GetMultipleDevicesAsync();
+            var towers = await cnManager.GetTowersAsync();
+            var deviceStatTask = cnManager.GetMultipleDevStatsAsync();
+            var deviceTask = cnManager.GetMultipleDevicesAsync();
             Task.WaitAll(deviceTask, deviceStatTask);
 
             //Dictionary of all Devices so we can lookup by mac address
@@ -72,7 +71,7 @@ namespace cnMaestroReporting.CLI
             // convert our IList task to a strongly typed object for easy use.
             var apInfo = onlineAPs.DistinctBy(ap => ap.mac).ToDictionary(
                 ap => ap.mac, 
-                ap => generateAccessPoint(
+                ap => GenerateAccessPoint(
                     ap, 
                     devices[ap.mac].ip, 
                     snmpResultsApTask.Result[devices[ap.mac].ip][SNMP.OIDs.sysContact]
@@ -107,7 +106,7 @@ namespace cnMaestroReporting.CLI
                     accesspoints: apInfo.Values.Where(a => a.Channel.ToString()[0] == band).ToList()
                     );
                 outputKML.GenerateKML();
-                outputKML.Save($"{band.ToString()}Ghz");
+                outputKML.Save($"{band}Ghz");
             }
 
             // Export to PTPPRJ
@@ -123,7 +122,7 @@ namespace cnMaestroReporting.CLI
             Console.ReadLine();
         }
 
-        static AccessPointRadioInfo generateAccessPoint(CnStatistics ap, string ip, string sysContact)
+        static AccessPointRadioInfo GenerateAccessPoint(CnStatistics ap, string ip, string sysContact)
         {
             var apRI = new AccessPointRadioInfo()
             {
@@ -168,13 +167,13 @@ namespace cnMaestroReporting.CLI
         /// <returns></returns>
         public static SubscriberRadioInfo GenerateSmRadioInfo(CnDevice apDevice, AccessPointRadioInfo apInfo, CnDevice smDevice, CnStatistics smStats, IDictionary<string, string> smSnmp)
         {
-            Double.TryParse(smSnmp[SNMP.OIDs.smFrequencyHz], out double smFrequencyHz);
-            Int32.TryParse(smSnmp[SNMP.OIDs.smAirDelayNs], out int smAirDelayNs);
+            _ = Double.TryParse(smSnmp[SNMP.OIDs.smFrequencyHz], out double smFrequencyHz);
+            _ = Int32.TryParse(smSnmp[SNMP.OIDs.smAirDelayNs], out int smAirDelayNs);
 
             double smDistanceM = RFCalc.MetersFromAirDelay(smAirDelayNs, smFrequencyHz, false);
 
             // If we have smGain from cnMaestro let's use it if not fall back to our configured value.
-            Int32.TryParse(smStats.gain, out int smGain);
+            _ = Int32.TryParse(smStats.gain, out int smGain);
             if (smGain <= 0)
                 smGain = _cambiumRadios.SM[smDevice.product].AntennaGain;
 

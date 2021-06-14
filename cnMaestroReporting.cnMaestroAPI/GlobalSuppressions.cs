@@ -5,4 +5,4 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-[assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "We're using the API naming convention in cnDataTypes", Scope = "namespaceanddescendants", Target = "cnMaestroReporting.cnMaestroAPI.cnDataType")]
+[assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "We're using the API naming convention in cnDataTypes", Scope = "namespaceanddescendants", Target = "~N:cnMaestroReporting.cnMaestroAPI.cnDataType")]

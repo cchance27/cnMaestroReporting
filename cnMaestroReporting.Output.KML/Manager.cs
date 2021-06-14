@@ -17,7 +17,7 @@ namespace cnMaestroReporting.Output.KML
 {
     public class Manager
     {
-        public Settings settings = new Settings();
+        public Settings settings = new();
         public Kml OutputKml { get; }
         private Style yellowIcon { get; }
         private Style greenIcon { get; }
@@ -26,11 +26,11 @@ namespace cnMaestroReporting.Output.KML
         private Style towerIcon { get; }
         private Dictionary<double, Style> plotStyle { get; }
 
-        private IEnumerable<SubscriberRadioInfo> _subscribers { get; }
-        private IEnumerable<KeyValuePair<string, CnLocation>> _towers { get; }
-        private IEnumerable<AccessPointRadioInfo> _accessPoints { get; }
-        private double[] _accessChannels { get; }
-        private Color32[] _randomColors { get; }
+        private IEnumerable<SubscriberRadioInfo> Subscribers { get; }
+        private IEnumerable<KeyValuePair<string, CnLocation>> Towers { get; }
+        private IEnumerable<AccessPointRadioInfo> AccessPoints { get; }
+        private double[] AccessChannels { get; }
+        private Color32[] RandomColors { get; }
 
         public Manager(
             IConfigurationSection configSection,
@@ -49,27 +49,27 @@ namespace cnMaestroReporting.Output.KML
             greenIcon = CreateIconStyle(nameof(greenIcon), settings.Icons["Good"]);
             whiteIcon = CreateIconStyle(nameof(whiteIcon), settings.Icons["Unknown"]);
             towerIcon = CreateIconStyle(nameof(towerIcon), settings.Icons["Tower"]);
-            _subscribers = subscribers.OrderBy(sm => sm.Name);
-            _towers = towers.OrderBy(tower => tower.Key);
-            _accessPoints = accesspoints.OrderBy(ap => ap.Name); // Name sorted dictionary.
+            Subscribers = subscribers.OrderBy(sm => sm.Name);
+            Towers = towers.OrderBy(tower => tower.Key);
+            AccessPoints = accesspoints.OrderBy(ap => ap.Name); // Name sorted dictionary.
 
             // Hardcoded random colors ugly but will work for now
             // TODO: Maybe an option so we can have colors by different parameters configurable, Random, Channel, Customer Count, Etc
-            _randomColors = new Color32[] { new Color32(175, 0, 0, 255), new Color32(175, 64, 115, 255), new Color32(175, 128, 213, 255), new Color32(175, 0, 242, 194), new Color32(175, 162, 242, 0), new Color32(175, 242, 162, 0), new Color32(175, 140, 0, 75), new Color32(175, 170, 0, 255), new Color32(175, 0, 0, 242), new Color32(175, 102, 129, 204), new Color32(175, 0, 194, 242), new Color32(175, 121, 242, 186), new Color32(175, 191, 230, 115), new Color32(175, 166, 124, 41), new Color32(175, 230, 115, 191), new Color32(175, 213, 128, 255), new Color32(175, 51, 51, 204), new Color32(175, 48, 105, 191), new Color32(175, 0, 112, 140), new Color32(175, 0, 140, 37), new Color32(175, 145, 153, 38), new Color32(175, 255, 102, 0), new Color32(175, 140, 70, 117), new Color32(175, 95, 0, 178), new Color32(175, 115, 115, 229), new Color32(175, 0, 68, 127), new Color32(175, 128, 247, 255), new Color32(175, 57, 230, 57), new Color32(175, 230, 214, 0), new Color32(175, 166, 66, 0), new Color32(175, 179, 0, 143), new Color32(175, 97, 0, 242), new Color32(175, 70, 79, 140), new Color32(175, 61, 157, 242), new Color32(175, 0, 166, 155), new Color32(175, 88, 166, 0), new Color32(175, 255, 204, 0), new Color32(175, 204, 129, 102), new Color32(175, 255, 0, 238), new Color32(175, 143, 102, 204), new Color32(175, 0, 37, 140), new Color32(175, 83, 127, 166), new Color32(175, 77, 153, 148), new Color32(175, 98, 128, 64), new Color32(175, 166, 149, 83), new Color32(175, 255, 64, 89), new Color32(175, 141, 41, 166), new Color32(175, 63, 35, 140) };
-            _accessChannels = accesspoints.GroupBy(ap => ap.Channel).Select(g => g.First()).Select(ap => ap.Channel).ToArray(); // Grab our list of unique channels
+            RandomColors = new Color32[] { new Color32(175, 0, 0, 255), new Color32(175, 64, 115, 255), new Color32(175, 128, 213, 255), new Color32(175, 0, 242, 194), new Color32(175, 162, 242, 0), new Color32(175, 242, 162, 0), new Color32(175, 140, 0, 75), new Color32(175, 170, 0, 255), new Color32(175, 0, 0, 242), new Color32(175, 102, 129, 204), new Color32(175, 0, 194, 242), new Color32(175, 121, 242, 186), new Color32(175, 191, 230, 115), new Color32(175, 166, 124, 41), new Color32(175, 230, 115, 191), new Color32(175, 213, 128, 255), new Color32(175, 51, 51, 204), new Color32(175, 48, 105, 191), new Color32(175, 0, 112, 140), new Color32(175, 0, 140, 37), new Color32(175, 145, 153, 38), new Color32(175, 255, 102, 0), new Color32(175, 140, 70, 117), new Color32(175, 95, 0, 178), new Color32(175, 115, 115, 229), new Color32(175, 0, 68, 127), new Color32(175, 128, 247, 255), new Color32(175, 57, 230, 57), new Color32(175, 230, 214, 0), new Color32(175, 166, 66, 0), new Color32(175, 179, 0, 143), new Color32(175, 97, 0, 242), new Color32(175, 70, 79, 140), new Color32(175, 61, 157, 242), new Color32(175, 0, 166, 155), new Color32(175, 88, 166, 0), new Color32(175, 255, 204, 0), new Color32(175, 204, 129, 102), new Color32(175, 255, 0, 238), new Color32(175, 143, 102, 204), new Color32(175, 0, 37, 140), new Color32(175, 83, 127, 166), new Color32(175, 77, 153, 148), new Color32(175, 98, 128, 64), new Color32(175, 166, 149, 83), new Color32(175, 255, 64, 89), new Color32(175, 141, 41, 166), new Color32(175, 63, 35, 140) };
+            AccessChannels = accesspoints.GroupBy(ap => ap.Channel).Select(g => g.First()).Select(ap => ap.Channel).ToArray(); // Grab our list of unique channels
             plotStyle = new Dictionary<double, Style>();
-            for (int i = 0; i < _accessChannels.Length; i++)
+            for (int i = 0; i < AccessChannels.Length; i++)
             {
                 // Hacky way of supporting rolling over the colors to be more transpartent on the higher channels if we run out of colors
-                int colorIndex = i % _randomColors.Length;
-                int alpha = _randomColors[colorIndex].Alpha;
-                if (i > _randomColors.Length)
+                int colorIndex = i % RandomColors.Length;
+                int alpha = RandomColors[colorIndex].Alpha;
+                if (i > RandomColors.Length)
                 {
-                    alpha /= (i / _randomColors.Length) + 1;
+                    alpha /= (i / RandomColors.Length) + 1;
                 }
-                Color32 c = new Color32((byte)alpha, _randomColors[colorIndex].Blue, _randomColors[colorIndex].Green, _randomColors[colorIndex].Red);
+                Color32 c = new((byte)alpha, RandomColors[colorIndex].Blue, RandomColors[colorIndex].Green, RandomColors[colorIndex].Red);
                 
-                plotStyle.Add(_accessChannels[i], CreatePlotStyle(_accessChannels[i], c));
+                plotStyle.Add(AccessChannels[i], CreatePlotStyle(AccessChannels[i], c));
             }
         }
 
@@ -78,9 +78,9 @@ namespace cnMaestroReporting.Output.KML
         /// </summary>
         /// <param name="name"></param>
         /// <returns></returns>
-        private Style CreatePlotStyle(double channel, Color32 color)
+        private static Style CreatePlotStyle(double channel, Color32 color)
         {
-            string name = $"plot_{channel.ToString()}";
+            string name = $"plot_{channel}";
            var plotStyle = new Style()
             {
                 Id = name,
@@ -102,7 +102,7 @@ namespace cnMaestroReporting.Output.KML
         /// <param name="name"></param>
         /// <param name="config"></param>
         /// <returns></returns>
-        private Style CreateIconStyle(string name, StyleConfig config)
+        private static Style CreateIconStyle(string name, StyleConfig config)
         {
             var thisColor = System.Drawing.Color.FromName(config.Color);
 
@@ -151,11 +151,11 @@ namespace cnMaestroReporting.Output.KML
 
                 towerFolder.Description = new Description()
                 {
-                    Text = $"<![CDATA[Total Subscribers:{_subscribers.Where(sm => sm.Tower == tower.Key).Count()}<br/>Correct Lat/Long Subs: {_subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.Tower == tower.Key).Count()}]]>"
+                    Text = $"<![CDATA[Total Subscribers:{Subscribers.Where(sm => sm.Tower == tower.Key).Count()}<br/>Correct Lat/Long Subs: {Subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.Tower == tower.Key).Count()}]]>"
                 };
 
                 // Loop through all the APs for this towers AP
-                foreach (var ap in _accessPoints.Where(ap => ap.Tower == tower.Key))
+                foreach (var ap in AccessPoints.Where(ap => ap.Tower == tower.Key))
                 {
                     var sectorFolder = generateSector(ap, tower.Value);
                     towerFolder.AddFeature(sectorFolder);
@@ -179,7 +179,7 @@ namespace cnMaestroReporting.Output.KML
             bool showSector = false;
 
             // Fetch all subscribers for this specific sector.
-            var sectorSubscribers = _subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.APName == ap.Name);
+            var sectorSubscribers = Subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.APName == ap.Name);
 
             sectorFolder.Description = CreateDescriptionFromObject(ap);
 
@@ -191,7 +191,7 @@ namespace cnMaestroReporting.Output.KML
                     // Check if the sm coordinates are realistic (within our configured range of the sector)
                     if (sm.DistanceGeoM <= settings.SmInvalidationRangeM)
                     {
-                        var smPlacemark = generateSmPlacemark(sm);
+                        var smPlacemark = GenerateSmPlacemark(sm);
                         if (smPlacemark.Visibility == true)
                             showSector = true;
 
@@ -203,8 +203,8 @@ namespace cnMaestroReporting.Output.KML
             if (ap.Azimuth != 999)
             {
                 // Generate the plot to show the coverage based on the sectors azimuth and distance
-                var sectorPlot = generateSectorPlot((double)location.coordinates[1], (double)location.coordinates[0], ap.Azimuth, 500, 90);
-                var plotPlacemark = new Placemark() { Name = ap.Name + " Coverage", Geometry = sectorPlot, StyleUrl = new Uri($"#plot_{ap.Channel.ToString()}", UriKind.Relative) };
+                var sectorPlot = GenerateSectorPlot((double)location.coordinates[1], (double)location.coordinates[0], ap.Azimuth, 500, 90);
+                var plotPlacemark = new Placemark() { Name = ap.Name + " Coverage", Geometry = sectorPlot, StyleUrl = new Uri($"#plot_{ap.Channel}", UriKind.Relative) };
 
                 // We chose in settings to always show sector plots
                 if (settings.alwaysShowSectorPlot == true) { showSector = true; };
@@ -225,7 +225,7 @@ namespace cnMaestroReporting.Output.KML
         /// <param name="longitude"></param>
         /// <param name="azimuth"></param>
         /// <param name="meters"></param>
-        private Polygon generateSectorPlot(double latitude, double longitude, double azimuth, double distance, double sectorWidth, double sectorPointSplit = 8)
+        private static Polygon GenerateSectorPlot(double latitude, double longitude, double azimuth, double distance, double sectorWidth, double sectorPointSplit = 8)
         {
             var sectorEdges = new LinearRing();
             var Coordinates = new CoordinateCollection
@@ -255,7 +255,7 @@ namespace cnMaestroReporting.Output.KML
         ///  Take a subscriberRadioInfo and return a nice SmPlacemark with all necesary subscriber information and location information.
         /// </summary>
         /// <param name="sm"></param>
-        private Placemark generateSmPlacemark(SubscriberRadioInfo sm)
+        private Placemark GenerateSmPlacemark(SubscriberRadioInfo sm)
         {
             var smPlacemark = new Placemark()
             {
@@ -302,7 +302,7 @@ namespace cnMaestroReporting.Output.KML
         /// </summary>
         /// <param name="inputObject"></param>
         /// <returns></returns>
-        Description CreateDescriptionFromObject(Object inputObject)
+        static Description CreateDescriptionFromObject(Object inputObject)
         {
             var content = new StringBuilder();
             foreach (PropertyInfo item in inputObject.GetType().GetProperties())
@@ -338,7 +338,7 @@ namespace cnMaestroReporting.Output.KML
                 }
             }
 
-            return new Description() { Text = $"<![CDATA[{content.ToString()}]]>" };
+            return new Description() { Text = $"<![CDATA[{content}]]>" };
         }
 
         /// <summary>
@@ -347,16 +347,16 @@ namespace cnMaestroReporting.Output.KML
         /// <param name="value"></param>
         /// <param name="trimString"></param>
         /// <returns></returns>
-        string FormatTrimAfter(string value, string trimString) => value.Contains(trimString) ? value.Substring(0, value.IndexOf(trimString)).Trim() : value;
+        static string FormatTrimAfter(string value, string trimString) => value.Contains(trimString) ? value.Substring(0, value.IndexOf(trimString)).Trim() : value;
 
         /// <summary>
         /// Pretty format for a Timespan ##d ##hr ##m
         /// </summary>
         /// <param name="timeSpan"></param>
         /// <returns></returns>
-        string FormatTimeSpan(System.TimeSpan timeSpan)
+        static string FormatTimeSpan(System.TimeSpan timeSpan)
         {
-            string FormatPart(int quantity, string name) => quantity > 0 ? $"{quantity}{name}{(quantity > 1 ? "s" : "")}" : null;
+            static string FormatPart(int quantity, string name) => quantity > 0 ? $"{quantity}{name}{(quantity > 1 ? "s" : "")}" : null;
             return string.Join(", ", new[] { FormatPart(timeSpan.Days, "d"), FormatPart(timeSpan.Hours, "hr"), FormatPart(timeSpan.Minutes, "m") }.Where(x => x != null));
         }
             
@@ -366,7 +366,7 @@ namespace cnMaestroReporting.Output.KML
         public void GenerateKML()
         {
             // Base document to hold styles and items
-            Document doc = new Document();
+            Document doc = new();
 
             // Create styles
             doc.AddStyle(yellowIcon);
@@ -382,11 +382,11 @@ namespace cnMaestroReporting.Output.KML
 
             doc.Description = new Description()
             {
-                Text = $"<![CDATA[Total Subscribers:{_subscribers.Count()}<br/>Correct Lat/Long: {_subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0).Count()}]]>"
+                Text = $"<![CDATA[Total Subscribers:{Subscribers.Count()}<br/>Correct Lat/Long: {Subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0).Count()}]]>"
             };
 
             //TODO: add comments with counts to the tower folder, sector folder, etc.
-            IEnumerable<Folder> siteFolders = _towers.Select(generateTower);
+            IEnumerable<Folder> siteFolders = Towers.Select(generateTower);
 
             // Create our Root folder and add all of our siteFolders to it.
             foreach (var F in siteFolders) { doc.AddFeature(F); }
@@ -403,22 +403,18 @@ namespace cnMaestroReporting.Output.KML
             if (String.IsNullOrWhiteSpace(settings.FileName))
                 if (band == "")
                 {
-                    FileName = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Subscriber Map.kmz";
+                    FileName = $"{DateTime.Now:yyyy-MM-dd} - Subscriber Map.kmz";
                 } else
                 {
-                    FileName = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Subscriber Map ({band}).kmz";
+                    FileName = $"{DateTime.Now:yyyy-MM-dd} - Subscriber Map ({band}).kmz";
                 }
                 else
                     FileName = settings.FileName;
 
             KmlFile kmlFile = KmlFile.Create(OutputKml, true);
-            using (FileStream fs = new FileStream(FileName, FileMode.Create))
-            {
-                using (KmzFile kmz = KmzFile.Create(kmlFile))
-                {
-                    kmz.Save(fs);
-                }
-            }
+            using FileStream fs = new(FileName, FileMode.Create);
+            using KmzFile kmz = KmzFile.Create(kmlFile);
+            kmz.Save(fs);
         }
     }
 }

@@ -5,7 +5,6 @@ namespace cnMaestroReporting.cnMaestroAPI
     public class Settings
     {
         private string _network = "default";
-
         public string ApiClientID { get; set; } = "";
         public string ApiClientSecret { get; set; } = "";
         public string ApiDomain { get; set; } = "";

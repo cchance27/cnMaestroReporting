@@ -1,116 +1,99 @@
 ﻿using cnMaestroReporting.cnMaestroAPI.cnDataType;
 using cnMaestroReporting.cnMaestroAPI.JsonType;
 using Microsoft.Extensions.Configuration;
-using System.Text.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Polly;
-using Polly.Extensions.Http;
 using Polly.Contrib.WaitAndRetry;
-using Polly.Wrap;
+using Flurl;
+using Flurl.Http;
+using cnMaestroReporting.cnMaestroAPI.cnDataTypes;
+using Polly.Retry;
+using static cnMaestroReporting.cnMaestroAPI.FlurlExceptionChecks;
 
 namespace cnMaestroReporting.cnMaestroAPI
 {
-public record cnAuthenticationResult(string access_token, int expires_in, string token_type);
-
 public class Manager
     {
         private string apiURL { get; set; }
-        private Settings settings { get; init; } = new Settings();
-        private Dictionary<string, string> credentials { get; set;  }
-        private FormUrlEncodedContent tokenCredentials { get; set; }
+        private string apiBearer { get; set; }
+        private Settings settings { get; set; }
         private SemaphoreSlim taskThrottle { get; set; }
         private TextWriter outputLog { get; set; }
-        private HttpClient client { get; set; }
+        private FlurlClient flurlClient { get; set; }
+        private IEnumerable<TimeSpan> retryDelay { get; set; }
 
+ #region Constructors
         /// <summary>
-        /// Constructor that creates a manager with all the basic values provided.
+        /// Helper function to setup our manager settings based on settings config.
         /// </summary>
-        /// <param name="clientID"></param>
-        /// <param name="clientSecret"></param>
-        /// <param name="apiDomain"></param>
-        /// <param name="apiFetchLimit"></param>
-        /// <param name="threads"></param>
         /// <param name="logger"></param>
-        public Manager(string clientID, string clientSecret, string apiDomain, int apiFetchLimit = 100, int threads = 4, TextWriter? logger = null)
+        private void SetupManager(TextWriter? logger = null)
         {
-            if (credentials == null)
-                credentials = new();
+            // Semaphore Limit for throttling our API Calls
+            taskThrottle = new(initialCount: settings.ApiThreads);
 
-            credentials["grant_type"] = "client_credentials";
-            credentials["client_id"] = clientID;
-            credentials["client_secret"] = clientSecret;
-
-#pragma warning disable CS8620 // Argument cannot be used for parameter due to differences in the nullability of reference types.
-            tokenCredentials = new(credentials);
-#pragma warning restore CS8620 // Argument cannot be used for parameter due to differences in the nullability of reference types.
-
-            if (taskThrottle == null)
-                 taskThrottle = new(initialCount: threads);
-
+            // Basic logging to console if we aren't passed one
             outputLog = logger ?? Console.Out;
 
-            apiURL = $"https://{apiDomain}/api/v1/";
+            // Setup our FlurlClient for accessing the API
+            apiURL = $"https://{settings.ApiDomain}/api/v1/";
+            flurlClient = new FlurlClient(apiURL);
 
-            if (client == null)
-            {
-                // Enable Gzip/Deflate support
-                var handler = new HttpClientHandler();
-                if (handler.SupportsAutomaticDecompression)
-                {
-                    handler.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
-                }
+            // Setup our Polly Delay settings
+            retryDelay = Backoff.LinearBackoff(TimeSpan.FromMilliseconds(500), retryCount: 3, fastFirst: true);
 
-                client = new HttpClient(handler)
-                {
-                    BaseAddress = new Uri(apiURL)
-                };
-                client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-            }
+            apiBearer = "";
         }
 
         /// <summary>
-        /// Creating a manager from a valid Settings Object, optional textlogger
+        /// Clean settings object before constructor
         /// </summary>
         /// <param name="settings"></param>
         /// <param name="logger"></param>
-
-        public Manager(Settings _settings, TextWriter? logger = null) : this(_settings.ApiClientID, _settings.ApiClientSecret, _settings.ApiDomain, _settings.ApiPageLimit, _settings.ApiThreads, logger) {
+        public Manager(Settings _settings, TextWriter? logger = null) {
 
             settings = _settings;
+            SetupManager(logger);
         }
 
         /// <summary>
-    /// Connect to the API and grab our valid bearer token we will be using
-    /// </summary>
-        public async Task GetAccessToken()
+        /// Config Section loading to settings before constructor
+        /// </summary>
+        /// <param name="section"></param>
+        /// <param name="logger"></param>
+        public Manager(IConfigurationSection section, TextWriter? logger = null)
         {
-            client.DefaultRequestHeaders.Authorization = null;
+            settings = new();
+            section.Bind(settings);
+            SetupManager(logger);
+            
+        }
+#endregion
 
-            HttpRequestMessage request = new(HttpMethod.Post, "access/token")
-            {
-                Content = tokenCredentials
-            };
+        /// <summary>
+        /// Connect to the API and grab our valid bearer token we will be using
+        /// </summary>
+        private async Task RefreshAccessToken()
+        {
+            outputLog.WriteLine($"Attemption To Login (Client-ID: {settings.ApiClientID})...");
 
-            HttpResponseMessage response = await client.SendAsync(request);
+            var transientPolicy = Policy
+                .Handle<FlurlHttpException>(HandleTransient)
+                .WaitAndRetryAsync(retryDelay, (i, t) => { Console.WriteLine($"Retrying Authentication, Transient Error... {i.Message}"); });
+            
+            var authResults = await transientPolicy.ExecuteAsync(
+                async () => await apiURL
+                .AppendPathSegment("access/token").WithClient(flurlClient)
+                .PostUrlEncodedAsync(new { client_id = settings.ApiClientID, client_secret = settings.ApiClientSecret, grant_type = "client_credentials" })
+                .ReceiveJson<cnAuthentication>());
 
-            string responseText = await response.Content.ReadAsStringAsync();
-            if (response.IsSuccessStatusCode)
-            {
-
-                cnAuthenticationResult? authenticationResult = JsonSerializer.Deserialize<cnAuthenticationResult>(responseText);
-                client.DefaultRequestHeaders.Authorization = new("Bearer", authenticationResult?.access_token);
-                return;
-            } 
-
-            outputLog.WriteLine($"Login Error Response: { responseText }");
+            apiBearer = authResults.access_token ?? "";
         }
 
         /// <summary>
@@ -122,63 +105,35 @@ public class Manager
         /// <param name="limit"></param>
         /// <param name="offset"></param>
         /// <returns></returns>
-
         private async Task<CnApiResponse<T>?> CallApiAsync<T>(string endPoint, string filter = "", int offset = 0) where T : ICnMaestroDataType
-
         {
-            String url = $"{endPoint}?limit=100&offset={offset}";
-            url = String.IsNullOrWhiteSpace(filter) ? url : url + "&" + filter; // If we have a filter add it to the url query
-            outputLog.WriteLine($"Fetching: {url}");
+            if (apiBearer == "")
+                await RefreshAccessToken();
 
-            AsyncPolicyWrap<HttpResponseMessage> Policies = PoliciesWithTransientTimeoutAndLogin();
+            var transientRecovery = Policy.Handle<FlurlHttpException>(HandleTransient)
+                .WaitAndRetryAsync(retryDelay, onRetry: (ex, _, _) => outputLog.WriteLine("Retrying API Call, Transient Error..."));
 
-            HttpResponseMessage response = await Policies.ExecuteAsync(async () => await client.GetAsync(url));
-            var responseString = await response.Content.ReadAsStringAsync();
-
-            response.EnsureSuccessStatusCode();
-
-            // Add support for decimals to the JSON Parser
-            var serializeOptions = new JsonSerializerOptions();
-            serializeOptions.Converters.Add(new JsonConverters.DecimalConverter());
-            if (responseString is not null)
-                return JsonSerializer.Deserialize<CnApiResponse<T>>(responseString, serializeOptions);
-
-            return null;
-        }
-
-        /// <summary>
-        /// Generate a PolicyWrap that includes Transient error protection, auto relogin, and a overall timeout.
-        /// </summary>
-        /// <returns></returns>
-        private AsyncPolicyWrap<HttpResponseMessage> PoliciesWithTransientTimeoutAndLogin()
-        {
-            // Setup HTTP Policies
-            var retryDelay = Backoff.LinearBackoff(TimeSpan.FromMilliseconds(500), retryCount: 3, fastFirst: true);
-            var transientPolicy = HttpPolicyExtensions.HandleTransientHttpError()
-                .WaitAndRetryAsync(retryDelay,
-                onRetryAsync: (ex, ctx, t1) =>
+            var authRecovery = Policy.Handle<FlurlHttpException>(HandleAuthFailure)
+                .WaitAndRetryAsync(retryDelay, onRetryAsync: async (ex, _, _) =>
                 {
-                    outputLog.WriteLine($"Transient Error Occurred: {ex.Result}");
-                    return Task.CompletedTask;
+                    outputLog.WriteLine($"Retrying because of Authentication Failure/Timeout: {ex.Message}");
+                    await RefreshAccessToken();
                 });
 
-            var timeoutPolicy = Policy.TimeoutAsync<HttpResponseMessage>(10,
-                onTimeoutAsync: (ctx, tsp, t1, t2) =>
-                {
-                    outputLog.WriteLine("Timeout has occurred");
-                    return Task.CompletedTask;
-                });
+            var policies = Policy.WrapAsync(authRecovery, transientRecovery);
 
-            var reloginPolicy = Policy.HandleResult<HttpResponseMessage>(r => r.StatusCode == HttpStatusCode.Forbidden || r.StatusCode == HttpStatusCode.BadRequest)
-                .WaitAndRetryAsync(retryDelay,
-                onRetryAsync: async (ex, retry) =>
-                {
-                    outputLog.WriteLine("Attempting Login...");
-                    await GetAccessToken();
-                });
+            var cnResponse = await policies.ExecuteAsync(async () =>
+            {
+                var request = filter != "" ? apiURL.SetQueryParams(filter) : (Url)apiURL;
+                request.AppendPathSegment(endPoint).WithClient(flurlClient);
+                request.SetQueryParam("limit", 100).SetQueryParam("offset", offset);
 
-            var HttpPolicies = Policy.WrapAsync(timeoutPolicy, transientPolicy, reloginPolicy);
-            return HttpPolicies;
+                Console.WriteLine($"Fetching: {request}");
+
+                return await request.WithOAuthBearerToken(apiBearer).GetAsync().ReceiveJson<CnApiResponse<T>>();
+            });
+
+            return cnResponse;
         }
 
         /// <summary>
@@ -242,7 +197,7 @@ public class Manager
             return results.ToList<T>();
         }
 
-        #region ------ API Calls --------
+        #region API Calls
         /// <summary>
         /// Returns a list of tasks that are fetching all of the networks
         /// </summary>
@@ -335,13 +290,6 @@ public class Manager
             }
 
             return filter;
-        }
-
-        public static Settings GenerateConfig(IConfigurationSection section)
-        {
-            Settings genSettings = new();
-            section.Bind(genSettings);
-            return genSettings;
         }
     }
 }

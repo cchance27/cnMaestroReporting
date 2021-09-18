@@ -4,10 +4,10 @@ namespace cnMaestroReporting.Domain
 {
     public class AccessPointStatistic
     {
-        public DateTime DateTime { get; }
-        public double UplinkThroughput { get; }
-        public double UplinkUtilization { get; }
-        public double DownlinkThroughput { get; }
-        public double DownlinkUtilization { get; }
+        public string TimeStamp { get; init; }
+        public double UplinkThroughput { get; init; }
+        public double UplinkUtilization { get; init; }
+        public double DownlinkThroughput { get; init; }
+        public double DownlinkUtilization { get; init; }
     }
 }

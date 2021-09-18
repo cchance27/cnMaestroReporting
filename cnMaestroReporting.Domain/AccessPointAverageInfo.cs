@@ -3,6 +3,8 @@
     public struct AccessPointAverageInfo
     {
         public string ApName { get; set; }
+        public string Hardware { get; set; }
+        public int Band { get; set; }
         public string Tower { get; set; }
         public int SMs { get; set; }
         public int AvgSmDistanceM { get; set; }
@@ -17,5 +19,8 @@
         public int AvgApSnrH { get; set; }
         public int AvgApSnrV { get; set; }
         public int WorstApSnr { get; set; }
+        public double DlFramePctl { get; set; }
+        public double DlTputPctl { get; set; }
+        public double DlUsageAnalysis { get; set; }
     }
 }

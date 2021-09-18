@@ -27,7 +27,7 @@ public class Manager
         private FlurlClient flurlClient { get; set; }
         private IEnumerable<TimeSpan> retryDelay { get; set; }
 
- #region Constructors
+        #region Constructors
         /// <summary>
         /// Helper function to setup our manager settings based on settings config.
         /// </summary>
@@ -132,7 +132,7 @@ public class Manager
 
                 return await request.WithOAuthBearerToken(apiBearer).GetAsync().ReceiveJson<CnApiResponse<T>>();
             });
-
+            
             return cnResponse;
         }
 
@@ -268,7 +268,30 @@ public class Manager
         public Task<IList<CnPerformance>> GetDevicePerfAsync(string macAddress, DateTime startTime, DateTime endTime) =>
             GetFullApiResultsAsync<CnPerformance>($"devices/{macAddress}/performance", 
                 $"start_time={startTime:yyyy-MM-ddTHH:mm:ss.fffffffK}&stop_time={endTime:yyyy-MM-ddTHH:mm:ss.fffffffK}");
-#endregion
+
+        /// <summary>
+        /// Return a list of alarms from a device between 2 dates, it's returned as an array of days and hours.
+        /// </summary>
+        /// <param name="macAddress"></param>
+        /// <param name="startTime"></param>
+        /// <param name="endTime"></param>
+        /// <returns></returns>
+        public Task<IList<CnAlarm>> GetDeviceAlarmsHistoryAsync(string macAddress, DateTime startTime, DateTime endTime, CnSeverity severity = CnSeverity.none)
+        {
+            var sev = severity != CnSeverity.none ? $"&severity={severity.ToString()}" : "";
+            return GetFullApiResultsAsync<CnAlarm>($"devices/{macAddress}/alarms/history",
+                $"start_time={startTime:yyyy-MM-ddTHH:mm:ss.fffffffK}&stop_time={endTime:yyyy-MM-ddTHH:mm:ss.fffffffK}");
+        }
+
+        public async Task<string> DeleteDeviceAsync(string mac)
+        {
+            // Super lazy mac check
+            if (mac.Length == 17 && mac.Contains(":")) { 
+                return await apiURL.AppendPathSegment($"/devices/{mac}").WithClient(flurlClient).WithOAuthBearerToken(apiBearer).DeleteAsync().ReceiveString();
+            }
+            throw new ArgumentException("Deleting requires a valid  mac address");
+        }
+        #endregion
 
         //TODO: Cleanup this and make it so we can pass a dictionary of filters instead of a string of filters.
         private static string TowerAndFiltersToQueryString(string towerFilter = "", string filter = "")

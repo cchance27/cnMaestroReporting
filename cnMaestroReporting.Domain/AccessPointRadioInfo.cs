@@ -1,4 +1,5 @@
-﻿using System;
+﻿using cnMaestroReporting.cnMaestroAPI.cnDataTypes;
+using System;
 using System.Collections.Generic;
 namespace cnMaestroReporting.Domain
 {
@@ -6,6 +7,7 @@ namespace cnMaestroReporting.Domain
     {
         [KMLConfig(Hidden = true)]
         public string Name { get; set; }
+        public string Hardware { get; set; }
 
         [KMLConfig(ConvertToUrl = true)]
         public string IP { get; set; }
@@ -37,5 +39,8 @@ namespace cnMaestroReporting.Domain
         public TimeSpan Uptime { get; set; }
 
         public IEnumerable<AccessPointStatistic> Statistics { get; set; }
+
+        public IEnumerable<CnAlarm> Alarms { get; set; }
+
     }
 }

@@ -19,6 +19,9 @@ namespace cnMaestroReporting.Domain
         public string APName { get; set; }
 
         [KMLConfig(Hidden = true)]
+        public string APEsn { get; set; }
+
+        [KMLConfig(Hidden = true)]
         public string ApModel { get; set; }
 
         public string Firmware { get; set; }
@@ -85,5 +88,27 @@ namespace cnMaestroReporting.Domain
 
         [KMLConfig(Name = "AP SNR Vertical")]
         public int ApSNRV { get; set; }
+
+        public string DownlinkModulation { get; set; }
+
+        public string UplinkModulation { get; set; }
+
+        [KMLConfig(Hidden = true)]
+        public readonly string DlMod { get => ModToQAM(int.Parse(DownlinkModulation.Split("X")[0])); }
+
+        [KMLConfig(Hidden = true)]
+        public readonly string UlMod { get => ModToQAM(int.Parse(UplinkModulation.Split("X")[0])); }
+
+        [KMLConfig(Hidden = true)]
+        public readonly string DlMimo { get => DownlinkModulation.Split("-")[1]; }
+
+        [KMLConfig(Hidden = true)]
+        public readonly string UlMimo { get => UplinkModulation.Split("-")[1]; }
+        private static string ModToQAM(int canopyModulation)
+        {
+            canopyModulation = canopyModulation - 1;
+            string[] modulations = { "BPSK", "QPSK", "8-QAM", "16-QAM", "32-QAM", "64-QAM", "128-QAM", "256-QAM" };
+            return modulations[canopyModulation];
+        }
     }
 }

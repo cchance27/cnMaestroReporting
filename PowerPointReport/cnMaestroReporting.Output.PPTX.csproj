@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FreeSpire.Presentation" Version="6.8.5" />
+    <PackageReference Include="morelinq" Version="3.3.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\..\VS Projects\FixedDeviceAudit\Memoize\Memoize.csproj" />
+    <ProjectReference Include="..\cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj" />
+    <ProjectReference Include="..\cnMaestroReporting.Prometheus\cnMaestroReporting.Prometheus.csproj" />
+  </ItemGroup>
+
+</Project>

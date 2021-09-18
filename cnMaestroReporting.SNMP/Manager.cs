@@ -117,6 +117,7 @@ namespace cnMaestroReporting.SNMP
             ConcurrentDictionary<string, IDictionary<string, string>> allResults = new ConcurrentDictionary<string, IDictionary<string, string>>();
             int done = 0;
             int total = ipAddresses.Count();
+
             foreach (var ip in ipAddresses) {
                 await _taskThrottle.WaitAsync(); // Wait for a free semaphore
                 taskList.Add(

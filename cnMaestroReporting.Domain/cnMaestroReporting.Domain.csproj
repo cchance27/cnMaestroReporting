@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\cnMaestroReporting.cnMaestroAPI\cnMaestroReporting.cnMaestroAPI.csproj" />
     <ProjectReference Include="..\CommonCalculations\CommonCalculations.csproj" />
   </ItemGroup>
 

@@ -5,7 +5,9 @@ using Flurl;
 
 namespace cnMaestroReporting.Prometheus
 {
-    public static class API {
+    public static class API
+    {
+        // VERY INTENSIVE SUBQUERIES BUT SINCE THIS IS REPORTING IT DOESN'T RUN OFTEN
         private static string promUrl = "https://prometheus.caribserve.net/api/v1/query";
         public static async Task<PromApiResponse> QueryAllDlTotal(string timerange)
         {

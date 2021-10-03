@@ -8,19 +8,26 @@ using cnMaestroReporting.Domain;
 using System.Linq;
 using Memoize;
 using MoreLinq;
+using cnMaestroReporting.Reporting.PPTX.Entities;
+using Spire.Presentation.Drawing;
 
 namespace cnMaestroReporting.Output.PPTX
 {
     public class Manager
     {
-        const int GAP = 10;
-        const int HEADER_HEIGHT = 25;
-        const int SUBHEADER_HEIGHT = 25;
-        const int TOTAL_DOUBLE_HEADER_HEIGHT = GAP + HEADER_HEIGHT + GAP + SUBHEADER_HEIGHT + GAP;
-        const int TOTAL_SINGLE_HEADER_HEIGHT = GAP + HEADER_HEIGHT + GAP;
-
-        const int SLIDE_WIDTH = 1280;
-        const int SLIDE_HEIGHT = 720;
+        private const int GAP = 10;
+        private const int HEADER_HEIGHT = 50;
+        private const int SUBHEADER_HEIGHT = 40;
+        private const int TOTAL_DOUBLE_HEADER_HEIGHT = GAP + HEADER_HEIGHT + GAP + SUBHEADER_HEIGHT + GAP;
+        private const int TOTAL_SINGLE_HEADER_HEIGHT = GAP + HEADER_HEIGHT + GAP;
+         
+        private const int SLIDE_WIDTH = 1280;
+        private const int SLIDE_HEIGHT = 720;
+         
+        private static Color COLOR_BRAND = Color.FromArgb(255, 65, 0);
+        private static Color COLOR_WHITE = Color.White;
+        private static Color COLOR_GREY = Color.FromArgb(87, 88, 90);
+        private static Color[] THEMECOLORS = new[] { COLOR_BRAND, Color.FromArgb(247, 163, 121), Color.FromArgb(250, 195, 168) };
 
         public Manager(List<SubscriberRadioInfo> smInfo, Dictionary<ESN, AccessPointRadioInfo> apInfo, Redis cache)
         {
@@ -57,8 +64,8 @@ namespace cnMaestroReporting.Output.PPTX
             IEnumerable<IGrouping<string, SubscriberRadioInfo>> smsByLowDlMod = smInfo.Where(y => IsLowMod(y.DlMod)).GroupBy(x => x.APName).OrderBy(x => x.Count()).Reverse();
             IEnumerable<IGrouping<string, SubscriberRadioInfo>> smsByLowUlMod = smInfo.Where(y => IsLowMod(y.UlMod)).GroupBy(x => x.APName).OrderBy(x => x.Count()).Reverse();
             AddSlideTwoTables(presentation, "Sectors with Highest # of Poor Modulation SMs (Current)",
-                new TableInfo($"Downlink - Total SMs: {smsByLowDlMod.Sum(y => y.Count())}", new string[] { "Sectors", "Total", "< 64-QAM" }, width502525, smsByLowDlMod.Select(x => new string[] { x.Key, apInfo.Values.Where(aps => aps.Name == x.Key).First().ConnectedSMs.ToString(), x.Count().ToString() })),
-                new TableInfo($"Uplink - Total SMs {smsByLowUlMod.Sum(y => y.Count())}", new string[] { "Sectors", "Total", "< 64-QAM" }, width502525, smsByLowUlMod.Select(x => new string[] { x.Key, apInfo.Values.Where(aps => aps.Name == x.Key).First().ConnectedSMs.ToString(), x.Count().ToString() })));
+                new TableInfo($"Downlink - Total SMs: {smsByLowDlMod.Sum(y => y.Count())}", new string[] { "Sectors", "< 64-QAM", "Total" }, width502525, smsByLowDlMod.Select(x => new string[] { x.Key, x.Count().ToString(), apInfo.Values.Where(aps => aps.Name == x.Key).First().ConnectedSMs.ToString() })),
+                new TableInfo($"Uplink - Total SMs {smsByLowUlMod.Sum(y => y.Count())}", new string[] { "Sectors", "< 64-QAM", "Total" }, width502525, smsByLowUlMod.Select(x => new string[] { x.Key, x.Count().ToString(), apInfo.Values.Where(aps => aps.Name == x.Key).First().ConnectedSMs.ToString() })));
 
             // SLIDE: Canopy Hardware Overview
             AddTwoChartSlide(presentation, "Network Canopy Hardware Overview",
@@ -78,8 +85,8 @@ namespace cnMaestroReporting.Output.PPTX
             Prometheus.PromResult[] SectorDataUsageDl = ApDl.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
             Prometheus.PromResult[] SectorDataUsageUl = ApUl.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
             AddSlideTwoTables(presentation, "Sectors with Highest Data Usage (30 days)", 
-                new TableInfo($"Downlink - Network Total: {DL}TB", new string[] { "Sectors", "Terabytes" }, width7030, SectorDataUsageDl.Select(x => new string[] { lookupApByIp(x.metric.instance, apInfo).Name, Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString() })),
-                new TableInfo($"Uplink - Network Total: {UL}TB", new string[] { "Sectors", "Terabytes" }, width7030, SectorDataUsageUl.Select(x => new string[] { lookupApByIp(x.metric.instance, apInfo).Name, Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString() })));
+                new TableInfo($"Downlink - Network Total: {DL}TB", new string[] { "Sectors", "Terabytes" }, width7030, SectorDataUsageDl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString() })),
+                new TableInfo($"Uplink - Network Total: {UL}TB", new string[] { "Sectors", "Terabytes" }, width7030, SectorDataUsageUl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString() })));
 
             // SLIDE: Sectors with Highest Peak Throughput
             Prometheus.PromApiResponse ApDlTp = cache.MemoizeAsync(nameof(Prometheus.API.QueryAllDlMaxThroughput) + "30d", () => Prometheus.API.QueryAllDlMaxThroughput("30d")).GetAwaiter().GetResult();
@@ -87,8 +94,8 @@ namespace cnMaestroReporting.Output.PPTX
             Prometheus.PromResult[] SectorDataTputDl = ApDlTp.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
             Prometheus.PromResult[] SectorDataTputUl = ApUlTp.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
             AddSlideTwoTables(presentation, "Sectors with Highest Peak Throughput (30 days)", 
-                new TableInfo("Downlink", new string[] { "Sectors", "Mbps" }, width7030, SectorDataTputDl.Select(x => new string[] { lookupApByIp(x.metric.instance, apInfo).Name, Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Megabyte, 2).ToString() + " Mbps" })),
-                new TableInfo("Uplink", new string[] { "Sectors", "Mbps" }, width7030, SectorDataTputUl.Select(x => new string[] { lookupApByIp(x.metric.instance, apInfo).Name, Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Megabyte, 2).ToString() + " Mbps" })));
+                new TableInfo("Downlink", new string[] { "Sectors", "SMs", "Mbps" }, width502525, SectorDataTputDl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), apInfo.Where(ap => ap.Value.IP == x.metric.instance).FirstOrDefault().Value?.ConnectedSMs, Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Megabyte, 2).ToString() + " Mbps" })),
+                new TableInfo("Uplink", new string[] { "Sectors", "SMs", "Mbps" }, width502525, SectorDataTputUl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), apInfo.Where(ap => ap.Value.IP == x.metric.instance).FirstOrDefault().Value?.ConnectedSMs, Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Megabyte, 2).ToString() + " Mbps" })));
 
             // SLIDE: Outages on canopy network
             IEnumerable<(string Tower, int Downtime)> downtimes = apInfo.Values.Select(ap => (Tower: ap.Tower, Downtime: ap.Alarms.Sum(x => x.duration))).OrderBy(x => x.Downtime).DistinctBy(x => x.Tower).Where(x => x.Downtime > 0).Reverse();
@@ -109,48 +116,40 @@ namespace cnMaestroReporting.Output.PPTX
             Console.WriteLine("\nPPTX Generation Completed");
         }
 
-        static AccessPointRadioInfo lookupApByIp(string ipaddress, Dictionary<ESN, AccessPointRadioInfo> _apInfo)
-        {
-            return _apInfo.Values.Where(v => v.IP == ipaddress).FirstOrDefault();
-        }
-
-        private void AddSlideTwoTables(Presentation presentation, string slideTitle, TableInfo table1Info, TableInfo table2Info)
+        private static void AddSlideTwoTables(Presentation presentation, string slideTitle, TableInfo table1Info, TableInfo table2Info)
         {
             int columns = 2;
             float tableWidth = (presentation.SlideSize.Size.Width - ((columns + 1) * GAP)) / 2;
 
             ISlide slide = presentation.Slides.Append();
 
-            IAutoShape header0 = slide.Shapes.AppendShape(ShapeType.Rectangle, new RectangleF(GAP, GAP, presentation.SlideSize.Size.Width - (GAP * 2), HEADER_HEIGHT));
-            header0.TextFrame.Paragraphs[0].Text = slideTitle;
+            AddSlideHeader(slide, slideTitle);
 
-            IAutoShape header1 = slide.Shapes.AppendShape(ShapeType.Rectangle, new RectangleF(GAP, TOTAL_SINGLE_HEADER_HEIGHT, tableWidth, SUBHEADER_HEIGHT));
-            header1.TextFrame.Paragraphs[0].Text = table1Info.title;
-            header1.TextFrame.Paragraphs[0].Alignment = TextAlignmentType.Center;
-            AddTableToSlide(slide, table1Info, GAP, tableWidth);
+            AddSubHeader(slide, table1Info.title, GAP, tableWidth);
+            AddTable(slide, table1Info, GAP, tableWidth);
 
-            IAutoShape header2 = slide.Shapes.AppendShape(ShapeType.Rectangle, new RectangleF(GAP + tableWidth + GAP, TOTAL_SINGLE_HEADER_HEIGHT, tableWidth, SUBHEADER_HEIGHT));
-            header2.TextFrame.Paragraphs[0].Text = table2Info.title;
-            header2.TextFrame.Paragraphs[0].Alignment = TextAlignmentType.Center;
-            AddTableToSlide(slide, table2Info, GAP + tableWidth + GAP, tableWidth);
+            AddSubHeader(slide, table2Info.title, GAP + tableWidth + GAP, tableWidth);
+            AddTable(slide, table2Info, GAP + tableWidth + GAP, tableWidth);
         }
-
-        private void AddOneChartSlide(Presentation presentation, ChartType chartType, IEnumerable<ISeriesInfo> data, string slideTitle, string chartTitle, string descText)
+                 
+        private static void AddOneChartSlide(Presentation presentation, ChartType chartType, IEnumerable<ISeriesInfo> data, string slideTitle, string chartTitle, string descText)
         {
             ISlide slide = presentation.Slides.Append();
             float chartWidth = (float)((presentation.SlideSize.Size.Width - (GAP * 3)) * 0.65);
             float textWidth = (float)((presentation.SlideSize.Size.Width - (GAP * 3)) * 0.35);
-            float chartHeight = presentation.SlideSize.Size.Height - TOTAL_SINGLE_HEADER_HEIGHT;
+            float chartHeight = presentation.SlideSize.Size.Height - (TOTAL_SINGLE_HEADER_HEIGHT + GAP /* TOP HEADER AREA + GAP */);
 
             RectangleF rectChart = new RectangleF(GAP, TOTAL_SINGLE_HEADER_HEIGHT, chartWidth, chartHeight);
-            RectangleF rectText = new RectangleF(GAP + chartWidth + GAP, TOTAL_SINGLE_HEADER_HEIGHT, textWidth, chartHeight);
 
-            IAutoShape header0 = slide.Shapes.AppendShape(ShapeType.Rectangle, new RectangleF(GAP, GAP, presentation.SlideSize.Size.Width - (GAP * 2), HEADER_HEIGHT));
-            header0.TextFrame.Paragraphs[0].Text = slideTitle;
+            AddSlideHeader(slide, slideTitle);
+
             AddChart(slide, rectChart, chartTitle, chartType, data);
 
+            RectangleF rectText = new RectangleF(GAP + chartWidth + GAP, TOTAL_SINGLE_HEADER_HEIGHT, textWidth, chartHeight);
             IAutoShape shape = slide.Shapes.AppendShape(ShapeType.Rectangle, rectText);
             shape.TextFrame.Paragraphs.Clear();
+            shape.ShapeStyle.FillColor.Color = COLOR_GREY;
+            shape.ShapeStyle.LineColor.Color = COLOR_GREY;
 
             shape.TextFrame.Paragraphs.AddFromHtml(descText);
             for (int i = 0; i < shape.TextFrame.Paragraphs.Count; i++)
@@ -159,28 +158,54 @@ namespace cnMaestroReporting.Output.PPTX
                 shape.TextFrame.Paragraphs[i].Alignment = TextAlignmentType.Center;
             }
         }
-
-        private void AddTwoChartSlide(Presentation presentation, string slideTitle, string chartTitle1, ChartType chartType1, IEnumerable<ISeriesInfo> data1, string chartTitle2, ChartType chartType2, IEnumerable<ISeriesInfo> data2)
+                 
+        private static void AddTwoChartSlide(Presentation presentation, string slideTitle, string chartTitle1, ChartType chartType1, IEnumerable<ISeriesInfo> data1, string chartTitle2, ChartType chartType2, IEnumerable<ISeriesInfo> data2)
         {
             ISlide slide = presentation.Slides.Append();
             float chartWidth = (float)((presentation.SlideSize.Size.Width - (GAP * 3)) * 0.50);
-            float chartHeight = presentation.SlideSize.Size.Height - TOTAL_SINGLE_HEADER_HEIGHT;
+            float chartHeight = presentation.SlideSize.Size.Height - (TOTAL_SINGLE_HEADER_HEIGHT + GAP /* TOP HEADER AREA + GAP */);
 
             RectangleF rectChart = new RectangleF(GAP, TOTAL_SINGLE_HEADER_HEIGHT, chartWidth, chartHeight);
             RectangleF rectChart2 = new RectangleF(GAP + chartWidth + GAP, TOTAL_SINGLE_HEADER_HEIGHT, chartWidth, chartHeight);
 
-            IAutoShape header0 = slide.Shapes.AppendShape(ShapeType.Rectangle, new RectangleF(GAP, GAP, presentation.SlideSize.Size.Width - (GAP * 2), HEADER_HEIGHT));
-            header0.TextFrame.Paragraphs[0].Text = slideTitle;
+            AddSlideHeader(slide, slideTitle);
             AddChart(slide, rectChart, chartTitle1, chartType1, data1);
             AddChart(slide, rectChart2, chartTitle2, chartType2, data2);
         }
 
-        private void AddChart(ISlide slide, RectangleF rect, string chartTitle, ChartType chartType, IEnumerable<ISeriesInfo> data)
+        private static void AddSlideHeader(ISlide slide, string slideTitle)
+        {
+            IAutoShape header = slide.Shapes.AppendShape(ShapeType.Rectangle, new RectangleF(GAP, GAP, slide.Presentation.SlideSize.Size.Width - (GAP * 2), HEADER_HEIGHT));
+            header.ShapeStyle.FillColor.Color = COLOR_BRAND;
+            header.ShapeStyle.LineColor.Color = COLOR_BRAND;
+            
+            var paragraph = header.TextFrame.Paragraphs[0];
+            paragraph.Text = slideTitle;
+            paragraph.Alignment = TextAlignmentType.Center;
+            paragraph.TextRanges[0].Fill.SolidColor.Color = COLOR_WHITE;
+            paragraph.TextRanges[0].FontHeight = 32;
+            paragraph.TextRanges[0].IsBold = TriState.True;
+        }
+
+        private static void AddSubHeader(ISlide slide, string title, float offset, float tableWidth)
+        {
+            IAutoShape header = slide.Shapes.AppendShape(ShapeType.Rectangle, new RectangleF(offset, TOTAL_SINGLE_HEADER_HEIGHT, tableWidth, SUBHEADER_HEIGHT));
+            header.ShapeStyle.FillColor.Color = COLOR_GREY;
+            header.ShapeStyle.LineColor.Color = COLOR_GREY;
+
+            var paragraph = header.TextFrame.Paragraphs[0];
+            paragraph.Text = title;
+            paragraph.Alignment = TextAlignmentType.Center;
+            paragraph.TextRanges[0].Fill.SolidColor.Color = COLOR_WHITE;
+            paragraph.TextRanges[0].FontHeight = 28;
+        }
+
+        private static void AddChart(ISlide slide, RectangleF rect, string chartTitle, ChartType chartType, IEnumerable<ISeriesInfo> data)
         {
             var columns = data.FirstOrDefault().GetType().GetProperties()?.Where(p => p.Name != "series").Select(n => n.Name).ToArray();
 
             IChart chart = slide.Shapes.AppendChart(chartType, rect);
-
+            
             // Chart Title
             chart.ChartTitle.TextProperties.Text = chartTitle;
             chart.ChartTitle.TextProperties.IsCentered = true;
@@ -220,11 +245,12 @@ namespace cnMaestroReporting.Output.PPTX
             for (int i = 0; i < columns.Count(); i++)
             {
                 chart.Series[i].Values = chart.ChartData[row: 1, column: i + 1, lastRow: data.Count(), lastColumn: i + 1];
+                chart.Series[i].Fill.FillType = FillFormatType.Solid;
+                chart.Series[i].Fill.SolidColor.Color = THEMECOLORS[i];
             }
 
             //apply built-in chart style  
             chart.ChartStyle = ChartStyle.Style11;
-
 
             //set overlap  
             chart.OverLap = 0;
@@ -233,35 +259,27 @@ namespace cnMaestroReporting.Output.PPTX
             chart.GapWidth = 50;
         }
 
-        #region DataTable Functions
-        private static void AddTableToSlide(ISlide slide5, TableInfo tableInfo, float offset, float tableWidth)
+        private static void AddTable(ISlide slide, TableInfo tableInfo, float offset, float tableWidth)
         {
-            ITable table7 = AddEmptyTableToSlide(slide5, 15 + 1, GAP, offset, tableInfo.columnWidths(tableWidth));
-            AddDataToTable(table7, tableInfo.headers, tableInfo.columnData);
-        }
+            ITable table = slide.Shapes.AppendTable(offset, TOTAL_DOUBLE_HEADER_HEIGHT, tableInfo.columnWidths(tableWidth), Enumerable.Repeat((double)10, 15 + 1).ToArray());
 
-        private static ITable AddEmptyTableToSlide(ISlide slide, int rows, int rowSize, float offset, double[] widths)
-        {
-            List<double> rowList = new();
-            for (int i = 0; i < rows; i++)
-            {
-                rowList.Add(rowSize);
-            }
+            string[][] dataArray = tableInfo.columnData.ToArray();
 
-            return slide.Shapes.AppendTable(offset, TOTAL_DOUBLE_HEADER_HEIGHT, widths, rowList.ToArray());
-        }
+            table.StylePreset = TableStylePreset.LightStyle1;
 
-        private static void AddDataToTable(ITable table, string[] Headers, IEnumerable<string[]> data)
-        {
-            var dataArray = data.ToArray();
-
-            int length = table.TableRows.Count < data.Count() ? table.TableRows.Count : data.Count() + 1;
+            int length = table.TableRows.Count < dataArray.Count() ? table.TableRows.Count : dataArray.Count() + 1;
             for (int row = 0; row < length; row++)
             {
-                for (int col = 0; col < dataArray[0].Length; col++) {
+                if (dataArray.Length == 0)
+                {
+                    continue;
+                }
+
+                for (int col = 0; col < dataArray[0].Length; col++)
+                {
                     if (row == 0)
                     {
-                        table[col, 0].TextFrame.Text = Headers[col];
+                        table[col, 0].TextFrame.Text = tableInfo.headers[col];
                     }
                     else
                     {
@@ -278,7 +296,6 @@ namespace cnMaestroReporting.Output.PPTX
                 }
             }
         }
-        #endregion
 
         #region Modulation Functions
         static int modToOrder(string mod)
@@ -302,35 +319,13 @@ namespace cnMaestroReporting.Output.PPTX
         }
         #endregion
 
-        #region Type Info
-        record TableInfo(string title, string[] headers, double[] columnPercents, IEnumerable<string[]> columnData)
+        private static string lookupApNameByIp(string ipaddress, Dictionary<ESN, AccessPointRadioInfo> _apInfo)
         {
-            double[] columnPercents { get; set; } = columnPercents;
-            public double[] columnWidths(float tableWidth) => columnPercents.Select(x => x * tableWidth).ToArray();
+            var ApRi = _apInfo.Values.Where(v => v.IP == ipaddress).FirstOrDefault()?.Name;
+            return ApRi ?? ipaddress;
         }
 
-        record fullModInfo(string series, float Downlink, float Uplink) : ISeriesInfo
-        {
-            public string series { get; set; } = series;
-        }
-        record dlModInfo(string series, float Downlink) : ISeriesInfo
-        {
-            public string series { get; set; } = series;
-        }
-        record ulModInfo(string series, float Uplink) : ISeriesInfo
-        {
-            public string series { get; set; } = series;
-        }
-        record freqCountInfo(string series, int fq3Ghz, int fq5Ghz) : ISeriesInfo
-        {
-            public string series { get; set; } = series;
-        }
-
-        interface ISeriesInfo
-        {
-            string series { get; set; }
-        }
-        #endregion
     }
 }
+
 

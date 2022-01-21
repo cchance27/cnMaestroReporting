@@ -1,8 +1,6 @@
-﻿namespace cnMaestroReporting.Output.PTPPRJ
+﻿namespace cnMaestroReporting.Output.PTPPRJ.Rules
 {
-    public static class Rules
-    {
-        public struct RuleAttributeSet
+    public struct RuleAttributeSet
         {
             public string name;
             public string format;
@@ -29,6 +27,4 @@
             public string predicate;
             public string property;
         }
-
-    }
 }

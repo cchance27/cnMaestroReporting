@@ -1,15 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31410.223
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31717.71
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.CLI", "cnMaestroReporting.CLI\cnMaestroReporting.CLI.csproj", "{2985D43B-6D66-4F12-B983-BAAC693752A2}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.cnMaestroAPI", "cnMaestroReporting.cnMaestroAPI\cnMaestroReporting.cnMaestroAPI.csproj", "{DE4C5707-25CF-4B4D-B3CC-9658937E2185}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CommonCalculations", "CommonCalculations\CommonCalculations.csproj", "{9DCFC77F-3D30-4A97-8708-CBBC6D9E9FCC}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.SNMP", "cnMaestroReporting.SNMP\cnMaestroReporting.SNMP.csproj", "{4F182158-EED5-4154-81E6-CA12A7130FDA}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.Output.XLSX", "cnMaestroReporting.Output.XLSX\cnMaestroReporting.Output.XLSX.csproj", "{D5E090EA-C57F-46BB-857B-03C493EA5B1A}"
 EndProject
@@ -19,11 +15,13 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.Output.K
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.Output.PTPPRJ", "cnMaestroReporting.Output.PTPPRJ\cnMaestroReporting.Output.PTPPRJ.csproj", "{975BD99D-C378-4A2E-8ED8-530FCC7503C5}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Memoize", "..\..\..\..\VS Projects\FixedDeviceAudit\Memoize\Memoize.csproj", "{AF7D0D47-91A0-46A5-A70B-FCDC02885CF4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.Output.PPTX", "PowerPointReport\cnMaestroReporting.Output.PPTX.csproj", "{44FD61C6-E35F-44DE-880F-6261A4AEC14D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cnMaestroReporting.Output.PPTX", "PowerPointReport\cnMaestroReporting.Output.PPTX.csproj", "{44FD61C6-E35F-44DE-880F-6261A4AEC14D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroReporting.Prometheus", "cnMaestroReporting.Prometheus\cnMaestroReporting.Prometheus.csproj", "{64EBC7B1-AD7A-40EA-893F-0FD2DB5630DD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cnMaestroReporting.Prometheus", "cnMaestroReporting.Prometheus\cnMaestroReporting.Prometheus.csproj", "{64EBC7B1-AD7A-40EA-893F-0FD2DB5630DD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnSNMP", "..\Libraries\cnSNMP\cnSNMP\cnSNMP.csproj", "{AA66EF97-43B0-4C82-B07F-D7B5401BFF03}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MemoizeRedis", "..\Libraries\MemoizeRedis\MemoizeRedis.csproj", "{03AD8CFB-8064-4EF2-A771-834AA9C77711}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,18 +33,10 @@ Global
 		{2985D43B-6D66-4F12-B983-BAAC693752A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2985D43B-6D66-4F12-B983-BAAC693752A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2985D43B-6D66-4F12-B983-BAAC693752A2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{DE4C5707-25CF-4B4D-B3CC-9658937E2185}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{DE4C5707-25CF-4B4D-B3CC-9658937E2185}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{DE4C5707-25CF-4B4D-B3CC-9658937E2185}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{DE4C5707-25CF-4B4D-B3CC-9658937E2185}.Release|Any CPU.Build.0 = Release|Any CPU
 		{9DCFC77F-3D30-4A97-8708-CBBC6D9E9FCC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{9DCFC77F-3D30-4A97-8708-CBBC6D9E9FCC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9DCFC77F-3D30-4A97-8708-CBBC6D9E9FCC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9DCFC77F-3D30-4A97-8708-CBBC6D9E9FCC}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4F182158-EED5-4154-81E6-CA12A7130FDA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4F182158-EED5-4154-81E6-CA12A7130FDA}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4F182158-EED5-4154-81E6-CA12A7130FDA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4F182158-EED5-4154-81E6-CA12A7130FDA}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D5E090EA-C57F-46BB-857B-03C493EA5B1A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D5E090EA-C57F-46BB-857B-03C493EA5B1A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D5E090EA-C57F-46BB-857B-03C493EA5B1A}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -63,10 +53,6 @@ Global
 		{975BD99D-C378-4A2E-8ED8-530FCC7503C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{975BD99D-C378-4A2E-8ED8-530FCC7503C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{975BD99D-C378-4A2E-8ED8-530FCC7503C5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{AF7D0D47-91A0-46A5-A70B-FCDC02885CF4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{AF7D0D47-91A0-46A5-A70B-FCDC02885CF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{AF7D0D47-91A0-46A5-A70B-FCDC02885CF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{AF7D0D47-91A0-46A5-A70B-FCDC02885CF4}.Release|Any CPU.Build.0 = Release|Any CPU
 		{44FD61C6-E35F-44DE-880F-6261A4AEC14D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{44FD61C6-E35F-44DE-880F-6261A4AEC14D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{44FD61C6-E35F-44DE-880F-6261A4AEC14D}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -75,6 +61,14 @@ Global
 		{64EBC7B1-AD7A-40EA-893F-0FD2DB5630DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{64EBC7B1-AD7A-40EA-893F-0FD2DB5630DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{64EBC7B1-AD7A-40EA-893F-0FD2DB5630DD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AA66EF97-43B0-4C82-B07F-D7B5401BFF03}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AA66EF97-43B0-4C82-B07F-D7B5401BFF03}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AA66EF97-43B0-4C82-B07F-D7B5401BFF03}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AA66EF97-43B0-4C82-B07F-D7B5401BFF03}.Release|Any CPU.Build.0 = Release|Any CPU
+		{03AD8CFB-8064-4EF2-A771-834AA9C77711}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{03AD8CFB-8064-4EF2-A771-834AA9C77711}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{03AD8CFB-8064-4EF2-A771-834AA9C77711}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{03AD8CFB-8064-4EF2-A771-834AA9C77711}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

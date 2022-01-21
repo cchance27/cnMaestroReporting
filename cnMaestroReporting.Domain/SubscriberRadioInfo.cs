@@ -16,6 +16,8 @@ namespace cnMaestroReporting.Domain
         public string Tower { get; set; }
 
         [KMLConfig(Hidden = true)]
+        public string APBand { get; set; }
+        [KMLConfig(Hidden = true)]
         public string APName { get; set; }
 
         [KMLConfig(Hidden = true)]

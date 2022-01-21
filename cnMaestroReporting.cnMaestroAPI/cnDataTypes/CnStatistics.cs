@@ -1,8 +1,0 @@
-﻿using System;
-
-namespace cnMaestroReporting.cnMaestroAPI.cnDataType
-{
-    public record CnStatistics(string ap_mac, string config_version, string connected_sms, string distance, string gain, string gps_sync_state, string last_sync, string mac, string managed_account, string mode, string name, string network, string parent_mac, string reboots, string site, string site_id, string status, string status_time, string temperature, string tower, string type, string vlan, string default_gateway, string ip_dns, string ip_dns_secondary, string ip_wan, string lan_mode_status, string lan_mtu, string lan_speed_status, string lan_status, string netmask, CnFixedRadioStatistics radio) : ICnMaestroDataType;
-
-    public record CnFixedRadioStatistics(string auth_mode, string auth_type, string channel_width, string color_code, string dfs_status, string wlan_status, double? dl_frame_utilization, int? dl_mcs, string dl_modulation, Int64? dl_pkts, Int64? dl_pkts_loss, int? dl_retransmits, int? dl_retransmits_pct, double? dl_rssi, double? dl_rssi_imbalance, int? dl_snr, int? dl_snr_v, int? dl_snr_h, Int64? dl_throughput, string frame_period, string frequency, string mac, string mode, string sessions_dropped, string ssid, string sync_source, string sync_state, string tdd_ratio, string tx_capacity, int? tx_power, string tx_quality, double? ul_frame_utilization, int? ul_mcs, string ul_modulation, Int64? ul_pkts, Int64? ul_pkts_loss, int? ul_retransmits, int? ul_retransmits_pct, double? ul_rssi, double? ul_rssi_imbalance, int? ul_snr, int? ul_snr_v, int? ul_snr_h, Int64? ul_throughput): ICnMaestroDataType;
-}

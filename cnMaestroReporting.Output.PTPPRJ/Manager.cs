@@ -1,50 +1,72 @@
-﻿using cnMaestroReporting.cnMaestroAPI.cnDataType;
+﻿using cnMaestroAPI.cnDataType;
 using cnMaestroReporting.Domain;
+using cnMaestroReporting.Output.PTPPRJ.Rules;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
-using static cnMaestroReporting.Output.PTPPRJ.Rules;
 
 namespace cnMaestroReporting.Output.PTPPRJ
 {
     public partial class Manager
     {
-        private Settings _settings { get; } = new Settings();
-        private IList<SubscriberRadioInfo> _subscribers { get; }
+        private Settings settings { get; init; }
+        private IList<SubscriberRadioInfo> _subscribers { get; init; }
         private IList<KeyValuePair<string, CnLocation>> _towers { get; }
         private IList<AccessPointRadioInfo> _accessPoints { get; }
         private XElement _project { get; set; }
-        private string _fileName { get; }
+        private string _fileName { get; init; }
 
         public Manager(
-         IConfigurationSection configSection,
          IEnumerable<SubscriberRadioInfo> subscribers,
          IEnumerable<KeyValuePair<string, CnLocation>> towers,
          IEnumerable<AccessPointRadioInfo> accesspoints)
         {
-            // Bind our configuration
-            configSection.Bind(_settings);
+            settings = LoadConfiguration();
 
-            // If we have a filename use it if not generate a dated filename.
-            if (String.IsNullOrWhiteSpace(_settings.FileName))
-                _fileName = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Link Planner.ptpprj";
-            else
-                _fileName = _settings.FileName;
+            ArgumentNullException.ThrowIfNull(settings);
 
-            // Drop subscribers with no latitude/longitude or that we were told are beyond our SM filter distance (assumed invalid)
-            _subscribers = subscribers.Where(
-                sm => sm.Latitude != 0 &&
-                sm.Longitude != 0 &&
-                sm.DistanceGeoM < _settings.SmInvalidationRangeM)
-                .OrderBy(sm => sm.Name).ToList();
+            _fileName = GenerateOutputFilename(settings.FileName);
+
+            _subscribers = FilterSubscribersByInvalidRange(subscribers);
 
             _towers = towers.OrderBy(tower => tower.Key).ToList();
 
             _accessPoints = accesspoints.OrderBy(ap => ap.Name).ToList(); // Name sorted dictionary.
+        }
+
+        private IList<SubscriberRadioInfo> FilterSubscribersByInvalidRange(IEnumerable<SubscriberRadioInfo> subscribers)
+        {
+            // Drop subscribers with no latitude/longitude or that we were told are beyond our SM filter distance (assumed invalid)
+            return subscribers.Where(
+                sm => sm.Latitude != 0 &&
+                sm.Longitude != 0 &&
+                sm.DistanceGeoM < settings.SmInvalidationRangeM)
+                .OrderBy(sm => sm.Name).ToList();
+        }
+
+        private string GenerateOutputFilename(string filename)
+        {
+            // If we have a filename use it if not generate a dated filename.
+            if (String.IsNullOrWhiteSpace(filename))
+                return $"{DateTime.Now.ToString("yyyy-MM-dd")} - Link Planner.ptpprj";
+            
+            return settings.FileName;
+        }
+
+        private Settings LoadConfiguration()
+        {
+            var configuration = new ConfigurationBuilder()
+              .SetBasePath(Directory.GetCurrentDirectory())
+              .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+              .Build();
+
+            // Setup config for the main eventloop
+            return configuration.GetSection("outputs:ptpprj").Get<Settings>();
         }
 
         /// <summary>
@@ -55,7 +77,7 @@ namespace cnMaestroReporting.Output.PTPPRJ
             // Base Project element for storing all project settings.
             _project = new XElement("Project");
             _project.SetAttributeValue("model", "MODEL_ITU");
-            _project.SetAttributeValue("default_subscriber_height", _settings.SmHeight.ToString());
+            _project.SetAttributeValue("default_subscriber_height", settings.SmHeight.ToString());
 
             // Rule used by the Link and PMP for performance issues
             var RuleAttribs = new RuleAttributeSet
@@ -252,7 +274,7 @@ namespace cnMaestroReporting.Output.PTPPRJ
             Place.SetAttributeValue("shape", "circle");
             Place.SetAttributeValue("latitude", tower.Value.coordinates[1]);
             Place.SetAttributeValue("height_asl", "None");
-            Place.SetAttributeValue("maximum_height", _settings.TowerHeight);
+            Place.SetAttributeValue("maximum_height", settings.TowerHeight);
             return Place;
         }
 
@@ -271,7 +293,7 @@ namespace cnMaestroReporting.Output.PTPPRJ
             Place.SetAttributeValue("shape", "circle");
             Place.SetAttributeValue("latitude", sm.Latitude);
             Place.SetAttributeValue("height_asl", "None");
-            Place.SetAttributeValue("maximum_height", _settings.SmHeight.ToString());
+            Place.SetAttributeValue("maximum_height", settings.SmHeight.ToString());
             return Place;
         }
 
@@ -299,14 +321,14 @@ namespace cnMaestroReporting.Output.PTPPRJ
                     AccessPoint.SetAttributeValue("ap_frequency", a.Channel.ToString());
                     AccessPoint.SetAttributeValue("number", thisTowerAps.IndexOf(a) + 1);
                     AccessPoint.SetAttributeValue("frame_period", "2.5");
-                    AccessPoint.SetAttributeValue("sm_antenna_height", _settings.SmHeight);
+                    AccessPoint.SetAttributeValue("sm_antenna_height", settings.SmHeight);
                     AccessPoint.SetAttributeValue("modelled_beamwidth", "120.0");
 
 
                     XElement Equipment = new XElement("Equipment");
-                    Equipment.SetAttributeValue("max_range", _settings.ApRange.ToString()); //TODO: pull this from the AP
+                    Equipment.SetAttributeValue("max_range", settings.ApRange.ToString()); //TODO: pull this from the AP
                     Equipment.SetAttributeValue("bandwidth", "20"); //TODO: pull this from the AP
-                    Equipment.SetAttributeValue("max_range_units", _settings.ApRangeUnits); //TODO: pull this from the AP
+                    Equipment.SetAttributeValue("max_range_units", settings.ApRangeUnits); //TODO: pull this from the AP
                     Equipment.SetAttributeValue("color_code", a.ColorCode.ToString());
                     Equipment.SetAttributeValue("sync_input", "AutoSync"); // "Generate Sync"
                     Equipment.SetAttributeValue("adjacent_channel_support", "0");
@@ -333,12 +355,12 @@ namespace cnMaestroReporting.Output.PTPPRJ
                         subscriber.SetAttributeValue("antenna", "cf7f457e-6015-4021-bc6b-422cfa1f287f"); //TODO: based on product
 
                         XElement pmplink = new XElement("PMPLink");
-                        pmplink.SetAttributeValue("minimum_fade_margin_required_sm", _settings.minimumFadeMarginSM.ToString());
-                        pmplink.SetAttributeValue("minimum_fade_margin_required_ap", _settings.minimumFadeMarginAP.ToString());
+                        pmplink.SetAttributeValue("minimum_fade_margin_required_sm", settings.minimumFadeMarginSM.ToString());
+                        pmplink.SetAttributeValue("minimum_fade_margin_required_ap", settings.minimumFadeMarginAP.ToString());
                         pmplink.SetAttributeValue("required_attribute_sm", "minimum_availability_required_sm");
                         pmplink.SetAttributeValue("required_attribute_ap", "minimum_availability_required_ap");
-                        pmplink.SetAttributeValue("minimum_availability_required_sm", _settings.minimumAvailabilitySM.ToString());
-                        pmplink.SetAttributeValue("minimum_availability_required_ap", _settings.minimumAvailabilityAP.ToString());
+                        pmplink.SetAttributeValue("minimum_availability_required_sm", settings.minimumAvailabilitySM.ToString());
+                        pmplink.SetAttributeValue("minimum_availability_required_ap", settings.minimumAvailabilityAP.ToString());
                         subscriber.Add(pmplink);
                         Subscribers.Add(subscriber);
                     }

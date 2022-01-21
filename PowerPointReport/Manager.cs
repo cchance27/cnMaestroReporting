@@ -6,10 +6,10 @@ using System.Data;
 using System.Collections.Generic;
 using cnMaestroReporting.Domain;
 using System.Linq;
-using Memoize;
-using MoreLinq;
+using MemoizeRedis;
 using cnMaestroReporting.Reporting.PPTX.Entities;
 using Spire.Presentation.Drawing;
+using cnMaestroReporting.Prometheus.Entities;
 
 namespace cnMaestroReporting.Output.PPTX
 {
@@ -29,7 +29,7 @@ namespace cnMaestroReporting.Output.PPTX
         private static Color COLOR_GREY = Color.FromArgb(87, 88, 90);
         private static Color[] THEMECOLORS = new[] { COLOR_BRAND, Color.FromArgb(247, 163, 121), Color.FromArgb(250, 195, 168) };
 
-        public Manager(List<SubscriberRadioInfo> smInfo, Dictionary<ESN, AccessPointRadioInfo> apInfo, Redis cache)
+        public Manager(List<SubscriberRadioInfo> smInfo, IDictionary<ESN, AccessPointRadioInfo> apInfo, PromNetworkData promNetworkData)
         {
             Console.WriteLine("\nStarting PPTX Generation");
 
@@ -49,8 +49,8 @@ namespace cnMaestroReporting.Output.PPTX
             IEnumerable<SubscriberRadioInfo> poorModulationDL = smInfo.Where(d => IsLowMod(d.DlMod));
             IEnumerable<SubscriberRadioInfo> poorModulationUL = smInfo.Where(d => IsLowMod(d.UlMod));
             IOrderedEnumerable<fullModInfo> modulationBreakdown = dlMod.Join(ulMod, o => o.series, i => i.series, (a, b) => new fullModInfo(a.series, a.Downlink, b.Uplink)).OrderBy(x => modToOrder(x.series));
-            AddOneChartSlide(presentation, ChartType.Bar3DClustered, modulationBreakdown, 
-                "Current SM Modulation Overview", 
+            AddOneChartSlide(presentation, ChartType.Bar3DClustered, modulationBreakdown,
+                "Current SM Modulation Overview",
                 "Uplink/Downlink Modulations",
                 $"<html><body>" +
                 $"<center><h1>Total SMs</h1>{smInfo.Count().ToString("N0")}<br/><br/>" +
@@ -70,50 +70,53 @@ namespace cnMaestroReporting.Output.PPTX
             // SLIDE: Canopy Hardware Overview
             AddTwoChartSlide(presentation, "Network Canopy Hardware Overview",
                 $"Total APs: {apInfo.Count()}", ChartType.Column3DStacked, apInfo.GroupBy(x => x.Value.Hardware).Select(y => new freqCountInfo(y.Key, y.Where(x => x.Value.Channel > 3000 && x.Value.Channel < 5000).Count(), y.Where(x => x.Value.Channel > 5000).Count())),
-                $"Total SMs: {smInfo.Count()}", ChartType.Column3DStacked, smInfo.GroupBy(x => x.Model).Select(y => new freqCountInfo(y.Key, y.Where(x => {
+                $"Total SMs: {smInfo.Count()}", ChartType.Column3DStacked, smInfo.GroupBy(x => x.Model).Select(y => new freqCountInfo(y.Key, y.Where(x =>
+                {
                     var channel = apInfo.Where(ap => ap.Key == x.APEsn).FirstOrDefault().Value.Channel;
                     return channel > 3000 && channel < 5000;
-                }).Count(), y.Where(x =>  apInfo.Where(ap => ap.Key == x.APEsn).FirstOrDefault().Value.Channel > 5000).Count())));
+                }).Count(), y.Where(x => apInfo.Where(ap => ap.Key == x.APEsn).FirstOrDefault().Value.Channel > 5000).Count())));
 
             // SLIDE: Sector Highest Data Usage
-            Prometheus.PromApiResponse ApDl = cache.MemoizeAsync(nameof(Prometheus.API.QueryAllDlTotal) + "30d", () => Prometheus.API.QueryAllDlTotal("30d")).GetAwaiter().GetResult();
-            Prometheus.PromApiResponse ApUl = cache.MemoizeAsync(nameof(Prometheus.API.QueryAllUlTotal) + "30d", () => Prometheus.API.QueryAllUlTotal("30d")).GetAwaiter().GetResult();
-            decimal totalDL = ApDl.data.result.Sum((x) => decimal.Parse(x.value[1]));
-            decimal totalUL = ApUl.data.result.Sum((x) => decimal.Parse(x.value[1]));
+            decimal totalDL = promNetworkData.ApDl.data.result.Sum((x) => decimal.Parse(x.value[1]));
+            decimal totalUL = promNetworkData.ApUl.data.result.Sum((x) => decimal.Parse(x.value[1]));
             decimal DL = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, totalDL, Utils.Bytes.Unit.Terabyte, 2);
             decimal UL = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, totalUL, Utils.Bytes.Unit.Terabyte, 2);
-            Prometheus.PromResult[] SectorDataUsageDl = ApDl.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
-            Prometheus.PromResult[] SectorDataUsageUl = ApUl.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
-            AddSlideTwoTables(presentation, "Sectors with Highest Data Usage (30 days)", 
+            Prometheus.PromResult[] SectorDataUsageDl = promNetworkData.ApDl.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
+            Prometheus.PromResult[] SectorDataUsageUl = promNetworkData.ApUl.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
+            AddSlideTwoTables(presentation, "Sectors with Highest Data Usage (30 days)",
                 new TableInfo($"Downlink - Network Total: {DL}TB", new string[] { "Sectors", "Terabytes" }, width7030, SectorDataUsageDl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString() })),
                 new TableInfo($"Uplink - Network Total: {UL}TB", new string[] { "Sectors", "Terabytes" }, width7030, SectorDataUsageUl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString() })));
 
             // SLIDE: Sectors with Highest Peak Throughput
-            Prometheus.PromApiResponse ApDlTp = cache.MemoizeAsync(nameof(Prometheus.API.QueryAllDlMaxThroughput) + "30d", () => Prometheus.API.QueryAllDlMaxThroughput("30d")).GetAwaiter().GetResult();
-            Prometheus.PromApiResponse ApUlTp = cache.MemoizeAsync(nameof(Prometheus.API.QueryAllUlMaxThroughput) + "30d", () => Prometheus.API.QueryAllUlMaxThroughput("30d")).GetAwaiter().GetResult();
-            Prometheus.PromResult[] SectorDataTputDl = ApDlTp.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
-            Prometheus.PromResult[] SectorDataTputUl = ApUlTp.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
-            AddSlideTwoTables(presentation, "Sectors with Highest Peak Throughput (30 days)", 
+            Prometheus.PromResult[] SectorDataTputDl = promNetworkData.ApDlTp.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
+            Prometheus.PromResult[] SectorDataTputUl = promNetworkData.ApUlTp.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
+            AddSlideTwoTables(presentation, "Sectors with Highest Peak Throughput (30 days)",
                 new TableInfo("Downlink", new string[] { "Sectors", "SMs", "Mbps" }, width502525, SectorDataTputDl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), apInfo.Where(ap => ap.Value.IP == x.metric.instance).FirstOrDefault().Value?.ConnectedSMs, Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Megabyte, 2).ToString() + " Mbps" })),
                 new TableInfo("Uplink", new string[] { "Sectors", "SMs", "Mbps" }, width502525, SectorDataTputUl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), apInfo.Where(ap => ap.Value.IP == x.metric.instance).FirstOrDefault().Value?.ConnectedSMs, Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Megabyte, 2).ToString() + " Mbps" })));
 
             // SLIDE: Outages on canopy network
             IEnumerable<(string Tower, int Downtime)> downtimes = apInfo.Values.Select(ap => (Tower: ap.Tower, Downtime: ap.Alarms.Sum(x => x.duration))).OrderBy(x => x.Downtime).DistinctBy(x => x.Tower).Where(x => x.Downtime > 0).Reverse();
-            AddSlideTwoTables(presentation, "Canopy Site Outages (30 days)", 
+            AddSlideTwoTables(presentation, "Canopy Site Outages (30 days)",
                 new TableInfo("Total Canopy Downtime by Site", new string[] { "Site", "Duration" }, width7030, downtimes.Take(15).Select(x => new string[] { x.Tower, TimeSpan.FromSeconds(x.Downtime).ToString() })),
                 new TableInfo("Total Canopy Downtime by Site", new string[] { "Site", "Duration" }, width7030, downtimes.Skip(15).Take(15).Select(x => new string[] { x.Tower, TimeSpan.FromSeconds(x.Downtime).ToString() })));
 
-            // Compute filename and save output
-            string FileName;
-            if (String.IsNullOrWhiteSpace(settings.FileName))
-                FileName = $"{DateTime.Now:yyyy-MM-dd} - Monthly Report.pptx";
-            else
-                FileName = settings.FileName;
+            // Compute filename
+            string FileName = GenerateFileName(settings);
 
             presentation.Slides.RemoveAt(0); // Remove first slide since our subfunctions skip it.
 
             presentation.SaveToFile(FileName, FileFormat.Pptx2013);
             Console.WriteLine("\nPPTX Generation Completed");
+        }
+
+        private static string GenerateFileName((string FileName, int Test) settings)
+        {
+            string FileName;
+            if (String.IsNullOrWhiteSpace(settings.FileName))
+                FileName = $"{DateTime.Now:yyyy-MM-dd} - Monthly Report.pptx";
+            else
+                FileName = settings.FileName;
+            return FileName;
         }
 
         private static void AddSlideTwoTables(Presentation presentation, string slideTitle, TableInfo table1Info, TableInfo table2Info)
@@ -202,6 +205,8 @@ namespace cnMaestroReporting.Output.PPTX
 
         private static void AddChart(ISlide slide, RectangleF rect, string chartTitle, ChartType chartType, IEnumerable<ISeriesInfo> data)
         {
+            if (data is null)
+                return;
             var columns = data.FirstOrDefault().GetType().GetProperties()?.Where(p => p.Name != "series").Select(n => n.Name).ToArray();
 
             IChart chart = slide.Shapes.AppendChart(chartType, rect);
@@ -319,7 +324,7 @@ namespace cnMaestroReporting.Output.PPTX
         }
         #endregion
 
-        private static string lookupApNameByIp(string ipaddress, Dictionary<ESN, AccessPointRadioInfo> _apInfo)
+        private static string lookupApNameByIp(string ipaddress, IDictionary<ESN, AccessPointRadioInfo> _apInfo)
         {
             var ApRi = _apInfo.Values.Where(v => v.IP == ipaddress).FirstOrDefault()?.Name;
             return ApRi ?? ipaddress;

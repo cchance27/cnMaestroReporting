@@ -1,17 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EPPlus" Version="5.7.4" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="5.0.0" />
+    <PackageReference Include="EPPlus" Version="5.8.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="6.0.0-rc.2.21480.5" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="6.0.0-rc.2.21480.5" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj" />
+    <ProjectReference Include="..\cnMaestroReporting.Prometheus\cnMaestroReporting.Prometheus.csproj" />
   </ItemGroup>
 
 </Project>

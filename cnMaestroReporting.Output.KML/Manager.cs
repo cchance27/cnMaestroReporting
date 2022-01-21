@@ -1,4 +1,4 @@
-﻿using cnMaestroReporting.cnMaestroAPI.cnDataType;
+﻿using cnMaestroAPI.cnDataType;
 using cnMaestroReporting.Domain;
 using Microsoft.Extensions.Configuration;
 using SharpKml.Base;
@@ -12,6 +12,7 @@ using System.Reflection;
 using System.Text;
 using TimeSpan = System.TimeSpan;
 using CommonCalculations;
+using cnMaestroReporting.Prometheus.Entities;
 
 namespace cnMaestroReporting.Output.KML
 {
@@ -33,15 +34,15 @@ namespace cnMaestroReporting.Output.KML
         private Color32[] RandomColors { get; }
 
         public Manager(
-            IConfigurationSection configSection,
             IEnumerable<SubscriberRadioInfo> subscribers,
             IEnumerable<KeyValuePair<string, CnLocation>> towers,
             IEnumerable<AccessPointRadioInfo> accesspoints)
         {
-            // Bind our configuration
-            configSection.Bind(settings);
+            settings = LoadConfiguration();
 
-            if (OutputKml == null)
+            ArgumentNullException.ThrowIfNull(settings);
+
+            if (OutputKml is null)
                 OutputKml = new Kml();
 
             redIcon = CreateIconStyle(nameof(redIcon), settings.Icons["Bad"]);
@@ -71,6 +72,25 @@ namespace cnMaestroReporting.Output.KML
                 
                 plotStyle.Add(AccessChannels[i], CreatePlotStyle(AccessChannels[i], c));
             }
+
+            plotStyle.Add(990, CreatePlotStyle(0, new Color32(175, 0, 255, 0)));
+            plotStyle.Add(9920, CreatePlotStyle(20, new Color32(175, 0, 255, 63)));
+            plotStyle.Add(9940, CreatePlotStyle(40, new Color32(175, 0, 255, 165)));
+            plotStyle.Add(9960, CreatePlotStyle(60, new Color32(175, 0, 165, 216)));
+            plotStyle.Add(9980, CreatePlotStyle(80, new Color32(175, 0, 127, 255)));
+            plotStyle.Add(99100, CreatePlotStyle(100, new Color32(175, 0, 0, 255)));
+        }
+
+        private Settings LoadConfiguration()
+        {
+            var configuration = new ConfigurationBuilder()
+              .SetBasePath(Directory.GetCurrentDirectory())
+              .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+              .Build();
+
+            // Setup config for the main eventloop
+            var x = configuration.GetSection("outputs:kml").Get<Settings>();
+            return x;
         }
 
         /// <summary>
@@ -127,7 +147,7 @@ namespace cnMaestroReporting.Output.KML
         /// </summary>
         /// <param name="tower"></param>
         /// <returns></returns>
-        private Folder generateTower(KeyValuePair<string, CnLocation> tower)
+        private Folder generateTower(KeyValuePair<string, CnLocation> tower, bool plotUsageOnly, PromNetworkData promNetworkData)
         {
             {
                 // Generate folder for containing all this towers ap, sectors, sms.
@@ -157,7 +177,7 @@ namespace cnMaestroReporting.Output.KML
                 // Loop through all the APs for this towers AP
                 foreach (var ap in AccessPoints.Where(ap => ap.Tower == tower.Key))
                 {
-                    var sectorFolder = generateSector(ap, tower.Value);
+                    var sectorFolder = generateSector(ap, tower.Value, plotUsageOnly, promNetworkData);
                     towerFolder.AddFeature(sectorFolder);
                 }
 
@@ -170,7 +190,7 @@ namespace cnMaestroReporting.Output.KML
         /// passed a sector build a folder containing the sector and all sm's attached to the sector.
         /// </summary>
         /// <param name="ap"></param>
-        private Folder generateSector(AccessPointRadioInfo ap, CnLocation location)
+        private Folder generateSector(AccessPointRadioInfo ap, CnLocation location, bool plotUsage, PromNetworkData promNetworkData)
         {
             // Create this sectors folder to hold all subscribers
             var sectorFolder = new Folder() { Name = ap.Name };
@@ -181,21 +201,22 @@ namespace cnMaestroReporting.Output.KML
             // Fetch all subscribers for this specific sector.
             var sectorSubscribers = Subscribers.Where(sm => sm.Latitude != 0 && sm.Longitude != 0 && sm.APName == ap.Name);
 
-            sectorFolder.Description = CreateDescriptionFromObject(ap);
-
             // Loop through and create all the placemarks for these sector subscribers.
-            if (settings.showSubscribers)
+            if (plotUsage == false)
             {
-                foreach (var sm in sectorSubscribers)
+                if (settings.showSubscribers)
                 {
-                    // Check if the sm coordinates are realistic (within our configured range of the sector)
-                    if (sm.DistanceGeoM <= settings.SmInvalidationRangeM)
+                    foreach (var sm in sectorSubscribers)
                     {
-                        var smPlacemark = GenerateSmPlacemark(sm);
-                        if (smPlacemark.Visibility == true)
-                            showSector = true;
+                        // Check if the sm coordinates are realistic (within our configured range of the sector)
+                        if (sm.DistanceGeoM <= settings.SmInvalidationRangeM)
+                        {
+                            var smPlacemark = GenerateSmPlacemark(sm);
+                            if (smPlacemark.Visibility == true)
+                                showSector = true;
 
-                        sectorFolder.AddFeature(smPlacemark);
+                            sectorFolder.AddFeature(smPlacemark);
+                        }
                     }
                 }
             }
@@ -203,17 +224,35 @@ namespace cnMaestroReporting.Output.KML
             if (ap.Azimuth != 999)
             {
                 // Generate the plot to show the coverage based on the sectors azimuth and distance
+                var plotUri = new Uri($"#plot_{ap.Channel}", UriKind.Relative);
+                if (plotUsage) { 
+                  var sector = new Dictionary<ESN, AccessPointRadioInfo>();
+                  sector.Add(new ESN(ap.Esn), ap);
+                  var averageInfo = AccessPointAverageInfo.GenerateFromSMandAPData(sectorSubscribers, sector, promNetworkData);
+                    if (averageInfo.Count() > 0)
+                    {
+                        ap.DlUsageAnalysis = averageInfo.First().DlUsageAnalysis;
+                        plotUri = new Uri($"#plot_99{averageInfo.First().DlUsageAnalysis}", UriKind.Relative);
+                    } else
+                    {
+                       ap.DlUsageAnalysis = 0;
+                       plotUri = new Uri($"#plot_990", UriKind.Relative);
+                    }
+                }
+
                 var sectorPlot = GenerateSectorPlot((double)location.coordinates[1], (double)location.coordinates[0], ap.Azimuth, 500, 90);
-                var plotPlacemark = new Placemark() { Name = ap.Name + " Coverage", Geometry = sectorPlot, StyleUrl = new Uri($"#plot_{ap.Channel}", UriKind.Relative) };
+                var plotPlacemark = new Placemark() { Name = ap.Name + " Coverage", Geometry = sectorPlot, StyleUrl = plotUri };
 
                 // We chose in settings to always show sector plots
-                if (settings.alwaysShowSectorPlot == true) { showSector = true; };
+                if (settings.alwaysShowSectorPlot == true || plotUsage) { showSector = true; };
                 plotPlacemark.Visibility = showSector;
                 sectorFolder.AddFeature(plotPlacemark);
             } else
             {
                 Console.WriteLine($"AP Missing Azimuth: {ap.Name}");
             }
+
+            sectorFolder.Description = CreateDescriptionFromObject(ap);
 
             return sectorFolder;
         }
@@ -363,7 +402,7 @@ namespace cnMaestroReporting.Output.KML
         /// <summary>
         /// Generate the full KML based on this class's properties
         /// </summary>
-        public void GenerateKML()
+        public void GenerateKML(bool plotUsageOnly, PromNetworkData promNetworkData)
         {
             // Base document to hold styles and items
             Document doc = new();
@@ -386,8 +425,7 @@ namespace cnMaestroReporting.Output.KML
             };
 
             //TODO: add comments with counts to the tower folder, sector folder, etc.
-            IEnumerable<Folder> siteFolders = Towers.Select(generateTower);
-
+            IEnumerable<Folder> siteFolders = Towers.Select(tower => generateTower(tower, plotUsageOnly, promNetworkData));
             // Create our Root folder and add all of our siteFolders to it.
             foreach (var F in siteFolders) { doc.AddFeature(F); }
 

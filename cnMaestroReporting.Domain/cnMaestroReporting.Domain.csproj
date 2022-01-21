@@ -1,11 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\cnMaestroReporting.cnMaestroAPI\cnMaestroReporting.cnMaestroAPI.csproj" />
+    <PackageReference Include="cnMaestroAPI" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\cnMaestroReporting.Prometheus\cnMaestroReporting.Prometheus.csproj" />
     <ProjectReference Include="..\CommonCalculations\CommonCalculations.csproj" />
   </ItemGroup>
 

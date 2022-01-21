@@ -1,4 +1,5 @@
 ﻿using cnMaestroReporting.Domain;
+using cnMaestroReporting.Prometheus.Entities;
 using CommonCalculations;
 using Microsoft.Extensions.Configuration;
 using OfficeOpenXml;
@@ -17,11 +18,16 @@ namespace cnMaestroReporting.Output.XLSX
         private ExcelPackage ExcelDocSM { get; }
 
         private ExcelPackage ExcelDocAP { get; }
+        private ExcelPackage ExcelDocAP2 { get; }
         public Settings settings = new Settings();
 
-        public Manager(IConfigurationSection configSection)
+        public Manager()
         {
-            configSection.Bind(settings);
+
+            settings = LoadConfiguration();
+
+            ArgumentNullException.ThrowIfNull(settings);
+
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
             if (ExcelDocSM == null)
@@ -29,27 +35,41 @@ namespace cnMaestroReporting.Output.XLSX
 
             if (ExcelDocAP == null)
                 ExcelDocAP = new ExcelPackage();
+
+            if (ExcelDocAP2 == null)
+                ExcelDocAP2= new ExcelPackage();
+        }
+
+        private Settings LoadConfiguration()
+        {
+            var configuration = new ConfigurationBuilder()
+              .SetBasePath(Directory.GetCurrentDirectory())
+              .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+              .Build();
+
+            // Setup config for the main eventloop
+            return configuration.GetSection("outputs:xlsx").Get<Settings>();
         }
 
         /// <summary>
         /// This takes our Enumerable data and generates an Excel Worksheet to a filename.
         /// </summary>
-        /// <param name="subData"></param>
-        public void Generate(IEnumerable<SubscriberRadioInfo> subData, Dictionary<ESN, AccessPointRadioInfo> apData)
+        /// <param name="subRadioInfo"></param>
+        public void Generate(IEnumerable<SubscriberRadioInfo> subRadioInfo, IDictionary<ESN, AccessPointRadioInfo> apRadioInfo, PromNetworkData promNetworkData)
         {
-            GenerateSubscriberWorkSheet(subData.Where(dev =>
+            GenerateSubscriberWorkSheet(subRadioInfo.Where(dev =>
                (dev.SmAPL < settings.LowSignal || dev.ApAPL < settings.LowSignal)), 
                "SMs with Low Power Levels");
 
-            GenerateSubscriberWorkSheet(subData.Where(dev =>
+            GenerateSubscriberWorkSheet(subRadioInfo.Where(dev =>
                (dev.ApSNRH != 0 && dev.ApSNRV != 0) && 
                (dev.SmSNRH < settings.LowSNR || dev.SmSNRV < settings.LowSNR || dev.ApSNRH < settings.LowSNR || dev.ApSNRV < settings.LowSNR)), 
                "SMs with Low SNR");
 
-            GenerateSubscriberWorkSheet(subData, "All Subscribers");
+            GenerateSubscriberWorkSheet(subRadioInfo, "All Subscribers");
 
             // Generate the AP Data and Worksheets
-            var apAverageInfo = ConvertSmDataToAvgAccessPoints(subData, apData);
+            var apAverageInfo = AccessPointAverageInfo.GenerateFromSMandAPData(subRadioInfo, apRadioInfo, promNetworkData);
 
             GenerateAccessPointWorksheet(apAverageInfo.Where(dev => 
                 (dev.AvgSmPl < settings.LowSignal || dev.AvgSmPl < settings.LowSignal)), 
@@ -58,55 +78,8 @@ namespace cnMaestroReporting.Output.XLSX
             GenerateAccessPointWorksheet(apAverageInfo.Where(dev => 
                 (dev.AvgApSnrH < settings.LowSNR || dev.AvgApSnrV < settings.LowSignal || dev.AvgSmSnrH < settings.LowSNR || dev.AvgSmSnrV < settings.LowSignal)), 
                 "APs with Low Avg SM SNRs");
-
-            GenerateAccessPointWorksheet(apAverageInfo, "All AccessPoint");
-        }
-
-        /// <summary>
-        /// Takes in an IEnumeable of SubscriberRadioInfo and Returns an IEnumerable of AccessPointAverageInfo
-        /// </summary>
-        /// <param name="subData"></param>
-        /// <returns></returns>
-        public IEnumerable<AccessPointAverageInfo> ConvertSmDataToAvgAccessPoints(IEnumerable<SubscriberRadioInfo> subData, Dictionary<ESN, AccessPointRadioInfo> apData)
-        {
-            var grouped = subData.GroupBy(sm => sm.APName);
-
-            List<AccessPointAverageInfo> apAIs = new();
-            
-            foreach (var ap in grouped) {
-                var apESN = ap.First().APEsn;
-
-                AccessPointAverageInfo apAI = new AccessPointAverageInfo {
-                    ApName = ap.Key,
-                    Hardware = apData[apESN].Hardware,
-                    Tower = ap.First().Tower,
-                    SMs = ap.Count(),
-                    Band = apData[apESN].Channel > 3000 && apData[apESN].Channel < 4000 ? 3 : apData[apESN].Channel > 4000 ? 5 : 0,
-                    AvgSmDistanceM = (int)ap.Where(sel => sel.DistanceM != 0).DefaultIfEmpty().Average(sel => sel.DistanceM),
-                    MaxSmDistanceM = (int)ap.Where(sel => sel.DistanceM != 0).DefaultIfEmpty().Max(sel => sel.DistanceM),
-                    AvgApPl = (int)ap.Where(sel => sel.ApAPL != 0).DefaultIfEmpty().Average(sel => sel.ApAPL),
-                    WorstApPl = (int)ap.Where(sel => sel.ApAPL != 0).DefaultIfEmpty().Min(sel => sel.ApAPL),
-                    AvgSmPl = (int)ap.Where(sel => sel.SmAPL != 0).DefaultIfEmpty().Average(sel => sel.SmAPL),
-                    WorstSmPl = (int)ap.Where(sel => sel.SmAPL != 0).DefaultIfEmpty().Min(sel => sel.SmAPL),
-                    AvgSmSnrH = (int)ap.Where(sel => sel.SmSNRH != 0).DefaultIfEmpty().Average(sel => sel.SmSNRH),
-                    AvgSmSnrV = (int)ap.Where(sel => sel.SmSNRV != 0).DefaultIfEmpty().Average(sel => sel.SmSNRV),
-                    WorstSmSnr = (int)ap.Where(sel => sel.SmSNRH != 0 && sel.SmSNRV != 0).Select(sel => sel.SmSNRV < sel.SmSNRH ? sel.SmSNRV : sel.SmSNRH).DefaultIfEmpty().Min(),
-                    AvgApSnrH = (int)ap.Where(sel => sel.ApSNRH != 0).DefaultIfEmpty().Average(sel => sel.ApSNRH),
-                    AvgApSnrV = (int)ap.Where(sel => sel.ApSNRV != 0).DefaultIfEmpty().Average(sel => sel.ApSNRV),
-                    WorstApSnr = (int)ap.Where(sel => sel.ApSNRH != 0 && sel.ApSNRV != 0).Select(sel => sel.ApSNRV < sel.ApSNRH ? sel.ApSNRV : sel.ApSNRH).DefaultIfEmpty().Min(),
-                };
-
-                var dlUtilization = apData[apESN].Statistics?.Select(s => s.DownlinkUtilization).ToArray();
-                apAI.DlFramePctl = MathCalc.Percentile(dlUtilization, 0.80);
-                apAI.DlTputPctl = MathCalc.Percentile(apData[apESN].Statistics?.Select(s => s.DownlinkThroughput).ToArray(), 0.80)/1024;
-
-                var usageByHours = MathCalc.BucketizeDouble(dlUtilization, new[] { 20.0, 40.0, 60.0, 80.0, 100.0 });
-
-                apAI.DlUsageAnalysis = usageByHours.OrderByDescending(a => a.Count).First().Bucket;
-                apAIs.Add(apAI);
-            }
-
-            return apAIs;
+         
+            GenerateAccessPointAvailabilityWorksheet(apAverageInfo, "All AccessPoint");
         }
 
         /// <summary>
@@ -126,36 +99,79 @@ namespace cnMaestroReporting.Output.XLSX
             dataRange.Sort(dataTable.Columns["APName"].Position);
 
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-               0, 2000, Color.Green, Color.Red, new int[] { }, "AvgSMDistanceM", "Average distance from AP of SMs based on AirDelayNS");
+               1000, Color.Green, Color.Red, new int[] { }, "AvgSMDistanceM", "Average distance from AP of SMs based on AirDelayNS");
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-               0, 2000, Color.Green, Color.Red, new int[] { }, "MaxSMDistanceM", "Maximum distance from AP of SMs based on AirDelayNS");
+               1000, Color.Green, Color.Red, new int[] { }, "MaxSMDistanceM", "Maximum distance from AP of SMs based on AirDelayNS");
 
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-               settings.LowSignal, -53, Color.Red, Color.Green, new int[] { -50, -60, -70, -80, -100 }, "AvgApPL", "Average SM Power Level on the AP Side");
+               settings.LowSignal, Color.Red, Color.Green, new int[] { -50, -60, -70, -80, -100 }, "AvgApPL", "Average SM Power Level on the AP Side");
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-               settings.LowSignal, -53, Color.Red, Color.Green, new int[] { -50, -60, -70, -80, -100 }, "WorstApPL", "Worst SM Power Level on the AP Side");
+               settings.LowSignal, Color.Red, Color.Green, new int[] { -50, -60, -70, -80, -100 }, "WorstApPL", "Worst SM Power Level on the AP Side");
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-               settings.LowSignal, -53, Color.Red, Color.Green, new int[] { -50, -60, -70, -80, -100 }, "AvgSmPL", "Average SM Power Level on the SM Side");
+               settings.LowSignal, Color.Red, Color.Green, new int[] { -50, -60, -70, -80, -100 }, "AvgSmPL", "Average SM Power Level on the SM Side");
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-               settings.LowSignal, -53, Color.Red, Color.Green, new int[] { -50, -60, -70, -80, -100 }, "WorstSmPL", "Worst SM Power Level on the SM Side");
+               settings.LowSignal, Color.Red, Color.Green, new int[] { -50, -60, -70, -80, -100 }, "WorstSmPL", "Worst SM Power Level on the SM Side");
 
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-                settings.LowSNR, 30, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgApSNRH", "Average SNR on the AP-H (ap side of the connection in Horizontal Polarity");
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgApSNRH", "Average SNR on the AP-H (ap side of the connection in Horizontal Polarity");
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-                settings.LowSNR, 30, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgApSNRV", "Average SNR on the AP-V (ap side of the connection in Vertical Polarity");
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgApSNRV", "Average SNR on the AP-V (ap side of the connection in Vertical Polarity");
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-                settings.LowSNR, 30, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "WorstApSNR", "Worst SM Signal-To-Noise Ratio on the AP Side");
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "WorstApSNR", "Worst SM Signal-To-Noise Ratio on the AP Side");
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-                settings.LowSNR, 30, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgSmSNRH", "Average SNR on the SM-H (sm side of the connection in Horizontal Polarity");
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgSmSNRH", "Average SNR on the SM-H (sm side of the connection in Horizontal Polarity");
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-                settings.LowSNR, 30, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgSmSNRV", "Average SNR on the SM-V (sm side of the connection in Vertical Polarity");
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgSmSNRV", "Average SNR on the SM-V (sm side of the connection in Vertical Polarity");
             conditionalColumn(ref dataTable, ref dataWS, apDataCount,
-                settings.LowSNR, 30, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "WorstSmSNR", "Worst SM Signal-To-Noise Ratio on the SM Side");
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "WorstSmSNR", "Worst SM Signal-To-Noise Ratio on the SM Side");
 
             dataTable.ShowFilter = false;
 
             dataWS.Cells[dataWS.Dimension.Address].AutoFitColumns();
         }
+
+        public void GenerateAccessPointAvailabilityWorksheet(IEnumerable<AccessPointAverageInfo> apAvgData, string WorksheetName)
+        {
+            int apDataCount = apAvgData.Count() == 0 ? 1 : apAvgData.Count();
+
+            ExcelWorksheet dataWS = ExcelDocAP2.Workbook.Worksheets.Add(WorksheetName);
+
+            dataWS.Cells["A1"].LoadFromCollection(apAvgData, true);
+            ExcelRange dataRange = dataWS.Cells[dataWS.Dimension.Address];
+            ExcelTable dataTable = dataWS.Tables.Add(dataRange, WorksheetName.Replace(" ", ""));
+            dataRange.Sort(dataTable.Columns["APName"].Position);
+
+            conditionalColumn(ref dataTable, ref dataWS, apDataCount,
+               1000, Color.Green, Color.Red, new int[] { }, "AvgSMDistanceM", "Average distance from AP of SMs based on AirDelayNS");
+            conditionalColumn(ref dataTable, ref dataWS, apDataCount,
+               1000, Color.Green, Color.Red, new int[] { }, "MaxSMDistanceM", "Maximum distance from AP of SMs based on AirDelayNS");
+
+            conditionalColumn(ref dataTable, ref dataWS, apDataCount,
+               settings.LowSignal, Color.Red, Color.Green, new int[] { -50, -60, -70, -80, -100 }, "AvgApPL", "Average SM Power Level on the AP Side");
+            conditionalColumn(ref dataTable, ref dataWS, apDataCount,
+               settings.LowSignal, Color.Red, Color.Green, new int[] { -50, -60, -70, -80, -100 }, "AvgSmPL", "Average SM Power Level on the SM Side");
+            
+            conditionalColumn(ref dataTable, ref dataWS, apDataCount,
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgApSNRH", "Average SNR on the AP-H (ap side of the connection in Horizontal Polarity");
+            conditionalColumn(ref dataTable, ref dataWS, apDataCount,
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgApSNRV", "Average SNR on the AP-V (ap side of the connection in Vertical Polarity");
+            conditionalColumn(ref dataTable, ref dataWS, apDataCount,
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgSmSNRH", "Average SNR on the SM-H (sm side of the connection in Horizontal Polarity");
+            conditionalColumn(ref dataTable, ref dataWS, apDataCount,
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgSmSNRV", "Average SNR on the SM-V (sm side of the connection in Vertical Polarity");
+
+
+            RenameColumn("DL30d", "DL tb/30d", ref dataTable);
+            RenameColumn("DL7d", "DL tb/7d", ref dataTable);
+            RenameColumn("DL1d", "DL tb/1d", ref dataTable);
+            RenameColumn("UL30d", "UL tb/30d", ref dataTable);
+            RenameColumn("UL7d", "UL tb/7d", ref dataTable);
+            RenameColumn("UL1d", "UL tb/1d", ref dataTable);
+            dataTable.ShowFilter = false;
+
+            dataWS.Cells[dataWS.Dimension.Address].AutoFitColumns();
+        }
+
 
         /// <summary>
         /// Generates a Subscriber Worksheet attached to this managers ExcelDoc with formatting.
@@ -181,27 +197,27 @@ namespace cnMaestroReporting.Output.XLSX
             RenameColumn("SmImbalance", "SMI", ref dataTable);
 
             conditionalColumn(ref dataTable, ref dataWS, dataCount,
-                settings.LowSignal, -53, Color.Red, Color.Green, new int[] { -60, -70, -80, -90, -100 }, "SmAPL", "Actual Power Level the SM is receiving from the AP");
+                settings.LowSignal, Color.Red, Color.Green, new int[] { -60, -70, -80, -90, -100 }, "SmAPL", "Actual Power Level the SM is receiving from the AP");
             conditionalColumn(ref dataTable, ref dataWS, dataCount,
-                settings.LowSignal, -53, Color.Red, Color.Green, new int[] { -60, -70, -80, -90, -100 }, "SmEPL", "Expected Power Level the SM should receive from the AP");
+                settings.LowSignal, Color.Red, Color.Green, new int[] { -60, -70, -80, -90, -100 }, "SmEPL", "Expected Power Level the SM should receive from the AP");
             conditionalColumn(ref dataTable, ref dataWS, dataCount,
-                settings.LowSignal, -53, Color.Red, Color.Green, new int[] { -60, -70, -80, -90, -100 }, "ApAPL", "Actual Power Level the AP is receiving from the SM");
+                settings.LowSignal, Color.Red, Color.Green, new int[] { -60, -70, -80, -90, -100 }, "ApAPL", "Actual Power Level the AP is receiving from the SM");
             conditionalColumn(ref dataTable, ref dataWS, dataCount,
-                settings.LowSignal, -53, Color.Red, Color.Green, new int[] { -60, -70, -80, -90, -100 }, "ApEPL", "Expected Power Level the AP should receive from the SM");
+                settings.LowSignal, Color.Red, Color.Green, new int[] { -60, -70, -80, -90, -100 }, "ApEPL", "Expected Power Level the AP should receive from the SM");
 
             conditionalColumn(ref dataTable, ref dataWS, dataCount, 
-                0, 10, Color.Green, Color.Red, new int[] { }, "ApPowerDiff", "AP side power difference between Expected and Actual", "APPD");
+                5, Color.Green, Color.Red, new int[] { }, "ApPowerDiff", "AP side power difference between Expected and Actual", "APPD");
             conditionalColumn(ref dataTable, ref dataWS, dataCount, 
-                0, 10, Color.Green, Color.Red, new int[] { }, "SmPowerDiff", "SM side power difference between Expected and Actual", "SMPD");
+                5, Color.Green, Color.Red, new int[] { }, "SmPowerDiff", "SM side power difference between Expected and Actual", "SMPD");
 
             conditionalColumn(ref dataTable, ref dataWS, dataCount,
-                settings.LowSNR, 25, Color.Red, Color.Green, new int[] { 30, 20, 15, 10, 0 }, "SmSnrH", "SNR on the SM-H (sm side of the connection in Vertical Polarity");
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 30, 20, 15, 10, 0 }, "SmSnrH", "SNR on the SM-H (sm side of the connection in Vertical Polarity");
             conditionalColumn(ref dataTable, ref dataWS, dataCount,
-                settings.LowSNR, 25, Color.Red, Color.Green, new int[] { 30, 20, 15, 10, 0 }, "SmSnrV", "SNR on the SM-V (sm side of the connection in Vertical Polarity");
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 30, 20, 15, 10, 0 }, "SmSnrV", "SNR on the SM-V (sm side of the connection in Vertical Polarity");
             conditionalColumn(ref dataTable, ref dataWS, dataCount,
-                settings.LowSNR, 25, Color.Red, Color.Green, new int[] { 30, 20, 15, 10, 0 }, "ApSNRH", "SNR on the AP-H (ap side of the connection in Horizontal Polarity");
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 30, 20, 15, 10, 0 }, "ApSNRH", "SNR on the AP-H (ap side of the connection in Horizontal Polarity");
             conditionalColumn(ref dataTable, ref dataWS, dataCount,
-                settings.LowSNR, 25, Color.Red, Color.Green, new int[] { 30, 20, 15, 10, 0 }, "ApSNRV", "SNR on the AP-V (ap side of the connection in Vertical Polarity");
+                settings.LowSNR, Color.Red, Color.Green, new int[] { 30, 20, 15, 10, 0 }, "ApSNRV", "SNR on the AP-V (ap side of the connection in Vertical Polarity");
 
             dataTable.ShowFilter = false;
 
@@ -219,9 +235,11 @@ namespace cnMaestroReporting.Output.XLSX
         {
             string FileNameSM = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Subscriber Report.xlsx"; ;
             string FileNameAP = $"{DateTime.Now.ToString("yyyy-MM-dd")} - AP Report.xlsx"; ;
+            string FileNameAP2 = $"{DateTime.Now.ToString("yyyy-MM-dd")} - AP Availability Report.xlsx"; ;
 
             ExcelDocSM.SaveAs(new FileInfo(FileNameSM));
             ExcelDocAP.SaveAs(new FileInfo(FileNameAP));
+            ExcelDocAP2.SaveAs(new FileInfo(FileNameAP2));
         }
 
         // These functions are for manipulating Excel Tables and Columns.
@@ -240,9 +258,11 @@ namespace cnMaestroReporting.Output.XLSX
         /// <param name="column"></param>
         /// <param name="comment"></param>
         /// <param name="newName"></param>
-        public void conditionalColumn(ref ExcelTable tbl1, ref ExcelWorksheet ws1, int tableCounts1, int low2, int high2, Color colorLow, Color colorHigh, int[] icon5levels, string column, string comment, string newName = "")
+        public void conditionalColumn(ref ExcelTable tbl1, ref ExcelWorksheet ws1, int tableCounts1, int breakPoint, Color colorLow, Color colorHigh, int[] icon5levels, string column, string comment, string newName = "")
         {
-            Cond2ColorFormat(column, tableCounts1, ref tbl1, ref ws1, low2, colorLow, high2, colorHigh);
+            //Cond2ColorFormat(column, tableCounts1, ref tbl1, ref ws1, low2, colorLow, high2, colorHigh);
+
+            CondBreakPointColor(column, tableCounts1, ref tbl1, ref ws1, breakPoint, colorHigh, colorLow);
             CommentColumn(column, comment, ref tbl1, ref ws1);
             if (icon5levels.Length == 5) { Cond5IconFormat(column, tableCounts1, ref tbl1, ref ws1, icon5levels[0], icon5levels[1], icon5levels[2], icon5levels[3], icon5levels[4]); };
             if (newName != "") { RenameColumn(column, newName, ref tbl1); };
@@ -258,6 +278,18 @@ namespace cnMaestroReporting.Output.XLSX
             table.Columns[ColumnName].Name = NewName;
         }
 
+        private void CondBreakPointColor(string ColumnName, int dataCount, ref ExcelTable tbl, ref ExcelWorksheet ew, int breakValue, Color highColor, Color lowColor)
+        {
+            ExcelAddress e = new ExcelAddress(2, tbl.Columns[ColumnName].Position + 1, dataCount + 1, tbl.Columns[ColumnName].Position + 1);
+            var cf = ew.ConditionalFormatting.AddGreaterThanOrEqual(e);
+            cf.Formula = breakValue.ToString();
+            cf.Style.Fill.BackgroundColor.Color = highColor;
+            var cf2 = ew.ConditionalFormatting.AddLessThan(e);
+            cf2.Formula = breakValue.ToString();
+            cf2.Style.Fill.BackgroundColor.Color = lowColor;
+
+
+        }
         private void Cond2ColorFormat(string ColumnName, int dataCount, ref ExcelTable tbl, ref ExcelWorksheet ew, int LowValue, Color LowColor, int HighValue, Color HighColor)
         {
             ExcelAddress e = new ExcelAddress(2, tbl.Columns[ColumnName].Position + 1, dataCount + 1, tbl.Columns[ColumnName].Position + 1);

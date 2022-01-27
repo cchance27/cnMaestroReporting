@@ -56,7 +56,7 @@ namespace cnMaestroReporting.CLI
             IDictionary<ESN, AccessPointRadioInfo> apInfo = GenerateAllAccessPointInfo(onlineDevicesFromApi, onlineStatisticsFromApi, snmpResultsAp);
 
             Console.WriteLine("Build Our Final DTO for SubscriberRadioInfo...");
-            List<SubscriberRadioInfo> smInfo = GenerateAllSmInfo(onlineDevicesFromApi, onlineStatisticsFromApi, snmpResultsSm, apInfo);
+            List<SubscriberRadioInfo> smInfo = GenerateAllSmInfo(onlineDevicesFromApi, onlineStatisticsFromApi, snmpResultsSm, apInfo, towersFromApi);
 
             // Output to various ways.
             OutputPPTX(smInfo, apInfo, promNetworkData);
@@ -85,7 +85,7 @@ namespace cnMaestroReporting.CLI
             return new PromNetworkData(ApDl30d, ApUl30d, ApDlTp, ApUlTp, ApDl7d, ApUl7d, ApDl1d, ApUl1d);
         }
 
-        private static List<SubscriberRadioInfo> GenerateAllSmInfo(Dictionary<ESN, CnDevice> onlineDevicesFromApi, IEnumerable<CnStatistics> onlineStatisticsFromApi, cnSNMP.CnSnmpResult[]? snmpResultsSm, IDictionary<ESN, AccessPointRadioInfo> apInfo)
+        private static List<SubscriberRadioInfo> GenerateAllSmInfo(Dictionary<ESN, CnDevice> onlineDevicesFromApi, IEnumerable<CnStatistics> onlineStatisticsFromApi, cnSNMP.CnSnmpResult[]? snmpResultsSm, IDictionary<ESN, AccessPointRadioInfo> apInfo, IList<CnTower> towerInfo)
         {
             ArgumentNullException.ThrowIfNull(snmpResultsSm);
             ConcurrentBag<SubscriberRadioInfo> outputBag = new();
@@ -105,7 +105,8 @@ namespace cnMaestroReporting.CLI
                             apInfo: apInfo[stat.ap_mac],
                             smDevice: onlineDevicesFromApi[stat.mac],
                             smStats: stat,
-                            smSnmp: thisSnmpResults.oidResult));
+                            smSnmp: thisSnmpResults.oidResult, 
+                            tower: towerInfo.Where(x => x.name == apInfo[stat.ap_mac].Tower).FirstOrDefault()));
                     };
                 });
 
@@ -268,9 +269,10 @@ namespace cnMaestroReporting.CLI
 
             return apRI;
         }
-        public static SubscriberRadioInfo GenerateSmRadioInfo(CnDevice apDevice, AccessPointRadioInfo apInfo, CnDevice smDevice, CnStatistics smStats, cnSNMP.CnOidResult[]? smSnmp)
+        public static SubscriberRadioInfo GenerateSmRadioInfo(CnDevice apDevice, AccessPointRadioInfo apInfo, CnDevice smDevice, CnStatistics smStats, cnSNMP.CnOidResult[]? smSnmp, CnTower? tower)
         {
             ArgumentNullException.ThrowIfNull(_cambiumRadios);
+            ArgumentNullException.ThrowIfNull(tower);
 
             Double.TryParse(smSnmp.Where(s => s.oid == cnSNMP.OIDs.smFrequencyHz ).FirstOrDefault().value, out double smFrequencyHz);
             Int32.TryParse(smSnmp.Where(s => s.oid == cnSNMP.OIDs.smAirDelayNs).FirstOrDefault().value, out int smAirDelayNs);
@@ -304,14 +306,9 @@ namespace cnMaestroReporting.CLI
                 Rx: _cambiumRadios.AP[apDevice.product].Radio(apTx));
 
             Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
-
-
-            if (smDevice.name.Contains("126063"))
-            {
-                Console.WriteLine("test");
-            }
+            
             //TODO: change coordinate system to use a strongly typed lat/long not the coordinates from cnLocation that are just an array as its confusing.
-            var GeoDistance = GeoCalc.GeoDistance((double)smDevice.location.coordinates[1], (double)smDevice.location.coordinates[0], (double)apDevice.location.coordinates[1], (double)apDevice.location.coordinates[0]);
+            var GeoDistance = GeoCalc.GeoDistance((double)smDevice.location.coordinates[1], (double)smDevice.location.coordinates[0], (double)tower.location.coordinates[1], (double)tower.location.coordinates[0]);
 
             return new SubscriberRadioInfo()
             {

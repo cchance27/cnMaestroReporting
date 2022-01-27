@@ -1,4 +1,5 @@
-﻿using cnMaestroReporting.Prometheus.Entities;
+﻿using cnMaestroAPI.cnDataType;
+using cnMaestroReporting.Prometheus.Entities;
 using CommonCalculations;
 using System;
 using System.Collections.Generic;
@@ -9,12 +10,16 @@ namespace cnMaestroReporting.Domain
     public struct AccessPointAverageInfo
     {
         public string ApName { get; set; }
+        public string Latitude { get; set; }
+        public string Longitude { get; set; }
         public string Hardware { get; set; }
         public int Azimuth { get; set; }
         public int Downtilt { get; set; }
+        public double Channel { get; set; }
         public int Band { get; set; }
         public string Tower { get; set; }
         public int SMs { get; set; }
+        public int ColorCode { get; set; }
         public int AvgSmDistanceM { get; set; }
         public int MaxSmDistanceM { get; set; }
         public decimal DL30d { get; set; }
@@ -33,6 +38,11 @@ namespace cnMaestroReporting.Domain
         public int AvgApSnrH { get; set; }
         public int AvgApSnrV { get; set; }
         public int WorstApSnr { get; set; }
+        public double DlEfficiencyMax { get; set; }
+        public double DlEfficiencyMean { get; set; }
+        public double DlTputMax { get; set; }
+        public double DlUtilMean { get; set; }
+        public double DlBusyHoursPct { get; set; }
         public double DlFramePctl { get; set; }
         public double DlTputPctl { get; set; }
         public double DlUsageAnalysis { get; set; }
@@ -42,7 +52,7 @@ namespace cnMaestroReporting.Domain
         /// </summary>
         /// <param name="subData"></param>
         /// <returns></returns>
-        static public IEnumerable<AccessPointAverageInfo> GenerateFromSMandAPData(IEnumerable<SubscriberRadioInfo> subData, IDictionary<ESN, AccessPointRadioInfo> apData, PromNetworkData promNetworkData)
+        static public IEnumerable<AccessPointAverageInfo> GenerateFromSMandAPData(IEnumerable<SubscriberRadioInfo> subData, IDictionary<ESN, AccessPointRadioInfo> apData, PromNetworkData promNetworkData, IEnumerable<KeyValuePair<string, CnLocation>> allTowers)
         {
             var grouped = subData.GroupBy(sm => sm.APName);
 
@@ -78,14 +88,21 @@ namespace cnMaestroReporting.Domain
                 var promDataUL7 = promNetworkData.ApUl7Days.data.result.Where(x => x.metric.instance == apIP).First();
                 var promDataUL1 = promNetworkData.ApUl24Hours.data.result.Where(x => x.metric.instance == apIP).First();
 
+                var Location = allTowers.Where(x => x.Key == apData[apESN].Tower).FirstOrDefault().Value.coordinates.ToArray();
+
+                if (Location.Count() < 2) Location = new decimal[] { 0m, 0m };
                 AccessPointAverageInfo apAI = new AccessPointAverageInfo
                 {
                     ApName = sub.Key,
+                    Latitude = Location[1].ToString(),
+                    Longitude = Location[0].ToString(),
                     Hardware = apData[apESN].Hardware,
                     Azimuth = apData[apESN].Azimuth,
                     Downtilt = apData[apESN].Downtilt,
+                    ColorCode = apData[apESN].ColorCode,
                     Tower = sub.First().Tower,
                     SMs = sub.Count(),
+                    Channel = apData[apESN].Channel,
                     Band = apData[apESN].Channel > 3000 && apData[apESN].Channel < 4000 ? 3 : apData[apESN].Channel > 4000 ? 5 : 0,
                     DL30d = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(promDataDL30.value[1]), Utils.Bytes.Unit.Terabyte, 2),
                     DL7d = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(promDataDL7.value[1]), Utils.Bytes.Unit.Terabyte, 2),
@@ -105,6 +122,11 @@ namespace cnMaestroReporting.Domain
                     AvgApSnrH = (int)sub.Where(sel => sel.ApSNRH != 0).DefaultIfEmpty().Average(sel => sel.ApSNRH),
                     AvgApSnrV = (int)sub.Where(sel => sel.ApSNRV != 0).DefaultIfEmpty().Average(sel => sel.ApSNRV),
                     WorstApSnr = (int)sub.Where(sel => sel.ApSNRH != 0 && sel.ApSNRV != 0).Select(sel => sel.ApSNRV < sel.ApSNRH ? sel.ApSNRV : sel.ApSNRH).DefaultIfEmpty().Min(),
+                    DlEfficiencyMax = apData[apESN].Statistics.MaxBy(x => x.BitzPerHzDownlink(20, 80)).BitzPerHzDownlink(20, 80),
+                    DlEfficiencyMean = apData[apESN].Statistics.Average(x => x.BitzPerHzDownlink(20, 80)),
+                    DlTputMax = apData[apESN].Statistics.MaxBy(x => x.DownlinkThroughput).DownlinkThroughput / 1000,
+                    DlUtilMean = apData[apESN].Statistics.Average(x => x.DownlinkUtilization),
+                    DlBusyHoursPct = (double)apData[apESN].Statistics.Where(x => x.DownlinkUtilization > 85).Count() / (double)apData[apESN].Statistics.Count()
                 };
 
                 var dlUtilization = apData[apESN].Statistics?.Select(s => s.DownlinkUtilization).ToArray();

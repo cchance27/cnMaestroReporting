@@ -60,7 +60,7 @@ namespace cnMaestroReporting.CLI
 
             // Output to various ways.
             OutputPPTX(smInfo, apInfo, promNetworkData);
-            OutputXLSX(smInfo, apInfo, promNetworkData);
+            OutputXLSX(towersFromApi, smInfo, apInfo, promNetworkData);
             OutputKMZ(towersFromApi, apInfo, smInfo, promNetworkData);
             OutputPTPPRJ(towersFromApi, apInfo, smInfo);
 
@@ -171,13 +171,13 @@ namespace cnMaestroReporting.CLI
         }
 
 
-        private static void OutputXLSX(List<SubscriberRadioInfo> subscriberInformation, IDictionary<ESN, AccessPointRadioInfo> apInformation, PromNetworkData promNetworkData)
+        private static void OutputXLSX(IList<CnTower> towers, List<SubscriberRadioInfo> subscriberInformation, IDictionary<ESN, AccessPointRadioInfo> apInformation, PromNetworkData promNetworkData)
         {
             ArgumentNullException.ThrowIfNull(_generalConfig);
 
             // Export to XLSX
             var outputXLSX = new Output.XLSX.Manager();
-            outputXLSX.Generate(subscriberInformation, apInformation, promNetworkData);
+            outputXLSX.Generate(subscriberInformation, apInformation, promNetworkData, towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.name, tower.location)));
             outputXLSX.Save();
         }
 
@@ -188,24 +188,25 @@ namespace cnMaestroReporting.CLI
             // Find our AP Bands
             var bands = apInfo.Values.DistinctBy(a => a.Channel.ToString()[0]).Select(a => a.Channel.ToString()[0]).ToArray();
 
+            var towersKVPArray = towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.name, tower.location));
             // Generate each bands KMZ
             foreach (char band in bands)
             {
                 // Export to KMZ
                 var outputKML = new Output.KML.Manager(
                     subscribers: subscriberInformation,
-                    towers: towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.name, tower.location)),
+                    towers: towersKVPArray,
                     accesspoints: apInfo.Values.Where(a => a.Channel.ToString()[0] == band).ToList()
                     );
 
                 var outputKML2 = new Output.KML.Manager(
                     subscribers: subscriberInformation,
-                    towers: towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.name, tower.location)),
+                    towers: towersKVPArray,
                     accesspoints: apInfo.Values.Where(a => a.Channel.ToString()[0] == band).ToList()
                     );
 
-                outputKML.GenerateKML(false, promNetworkData);
-                outputKML2.GenerateKML(true, promNetworkData);
+                outputKML.GenerateKML(false, promNetworkData, towersKVPArray);
+                outputKML2.GenerateKML(true, promNetworkData, towersKVPArray);
                 outputKML.Save($"{band}Ghz");
                 outputKML2.Save($"{band}Ghz Utilization");
             }
@@ -304,6 +305,11 @@ namespace cnMaestroReporting.CLI
 
             Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
 
+
+            if (smDevice.name.Contains("126063"))
+            {
+                Console.WriteLine("test");
+            }
             //TODO: change coordinate system to use a strongly typed lat/long not the coordinates from cnLocation that are just an array as its confusing.
             var GeoDistance = GeoCalc.GeoDistance((double)smDevice.location.coordinates[1], (double)smDevice.location.coordinates[0], (double)apDevice.location.coordinates[1], (double)apDevice.location.coordinates[0]);
 

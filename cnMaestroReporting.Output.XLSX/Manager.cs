@@ -1,4 +1,5 @@
-﻿using cnMaestroReporting.Domain;
+﻿using cnMaestroAPI.cnDataType;
+using cnMaestroReporting.Domain;
 using cnMaestroReporting.Prometheus.Entities;
 using CommonCalculations;
 using Microsoft.Extensions.Configuration;
@@ -55,7 +56,7 @@ namespace cnMaestroReporting.Output.XLSX
         /// This takes our Enumerable data and generates an Excel Worksheet to a filename.
         /// </summary>
         /// <param name="subRadioInfo"></param>
-        public void Generate(IEnumerable<SubscriberRadioInfo> subRadioInfo, IDictionary<ESN, AccessPointRadioInfo> apRadioInfo, PromNetworkData promNetworkData)
+        public void Generate(IEnumerable<SubscriberRadioInfo> subRadioInfo, IDictionary<ESN, AccessPointRadioInfo> apRadioInfo, PromNetworkData promNetworkData, IEnumerable<KeyValuePair<string, CnLocation>> allTowers)
         {
             GenerateSubscriberWorkSheet(subRadioInfo.Where(dev =>
                (dev.SmAPL < settings.LowSignal || dev.ApAPL < settings.LowSignal)), 
@@ -69,7 +70,7 @@ namespace cnMaestroReporting.Output.XLSX
             GenerateSubscriberWorkSheet(subRadioInfo, "All Subscribers");
 
             // Generate the AP Data and Worksheets
-            var apAverageInfo = AccessPointAverageInfo.GenerateFromSMandAPData(subRadioInfo, apRadioInfo, promNetworkData);
+            var apAverageInfo = AccessPointAverageInfo.GenerateFromSMandAPData(subRadioInfo, apRadioInfo, promNetworkData, allTowers);
 
             GenerateAccessPointWorksheet(apAverageInfo.Where(dev => 
                 (dev.AvgSmPl < settings.LowSignal || dev.AvgSmPl < settings.LowSignal)), 

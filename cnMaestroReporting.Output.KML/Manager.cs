@@ -26,7 +26,6 @@ namespace cnMaestroReporting.Output.KML
         private Style redIcon { get; }
         private Style towerIcon { get; }
         private Dictionary<double, Style> plotStyle { get; }
-
         private IEnumerable<SubscriberRadioInfo> Subscribers { get; }
         private IEnumerable<KeyValuePair<string, CnLocation>> Towers { get; }
         private IEnumerable<AccessPointRadioInfo> AccessPoints { get; }
@@ -147,7 +146,7 @@ namespace cnMaestroReporting.Output.KML
         /// </summary>
         /// <param name="tower"></param>
         /// <returns></returns>
-        private Folder generateTower(KeyValuePair<string, CnLocation> tower, bool plotUsageOnly, PromNetworkData promNetworkData)
+        private Folder generateTower(KeyValuePair<string, CnLocation> tower, bool plotUsageOnly, PromNetworkData promNetworkData, IEnumerable<KeyValuePair<string, CnLocation>> allTowers)
         {
             {
                 // Generate folder for containing all this towers ap, sectors, sms.
@@ -177,7 +176,7 @@ namespace cnMaestroReporting.Output.KML
                 // Loop through all the APs for this towers AP
                 foreach (var ap in AccessPoints.Where(ap => ap.Tower == tower.Key))
                 {
-                    var sectorFolder = generateSector(ap, tower.Value, plotUsageOnly, promNetworkData);
+                    var sectorFolder = generateSector(ap, tower.Value, plotUsageOnly, promNetworkData, allTowers);
                     towerFolder.AddFeature(sectorFolder);
                 }
 
@@ -190,7 +189,7 @@ namespace cnMaestroReporting.Output.KML
         /// passed a sector build a folder containing the sector and all sm's attached to the sector.
         /// </summary>
         /// <param name="ap"></param>
-        private Folder generateSector(AccessPointRadioInfo ap, CnLocation location, bool plotUsage, PromNetworkData promNetworkData)
+        private Folder generateSector(AccessPointRadioInfo ap, CnLocation location, bool plotUsage, PromNetworkData promNetworkData, IEnumerable<KeyValuePair<string, CnLocation>> allTowers)
         {
             // Create this sectors folder to hold all subscribers
             var sectorFolder = new Folder() { Name = ap.Name };
@@ -228,7 +227,7 @@ namespace cnMaestroReporting.Output.KML
                 if (plotUsage) { 
                   var sector = new Dictionary<ESN, AccessPointRadioInfo>();
                   sector.Add(new ESN(ap.Esn), ap);
-                  var averageInfo = AccessPointAverageInfo.GenerateFromSMandAPData(sectorSubscribers, sector, promNetworkData);
+                  var averageInfo = AccessPointAverageInfo.GenerateFromSMandAPData(sectorSubscribers, sector, promNetworkData, allTowers);
                     if (averageInfo.Count() > 0)
                     {
                         ap.DlUsageAnalysis = averageInfo.First().DlUsageAnalysis;
@@ -402,7 +401,7 @@ namespace cnMaestroReporting.Output.KML
         /// <summary>
         /// Generate the full KML based on this class's properties
         /// </summary>
-        public void GenerateKML(bool plotUsageOnly, PromNetworkData promNetworkData)
+        public void GenerateKML(bool plotUsageOnly, PromNetworkData promNetworkData, IEnumerable<KeyValuePair<string, CnLocation>> allTowers)
         {
             // Base document to hold styles and items
             Document doc = new();
@@ -425,7 +424,7 @@ namespace cnMaestroReporting.Output.KML
             };
 
             //TODO: add comments with counts to the tower folder, sector folder, etc.
-            IEnumerable<Folder> siteFolders = Towers.Select(tower => generateTower(tower, plotUsageOnly, promNetworkData));
+            IEnumerable<Folder> siteFolders = Towers.Select(tower => generateTower(tower, plotUsageOnly, promNetworkData, allTowers));
             // Create our Root folder and add all of our siteFolders to it.
             foreach (var F in siteFolders) { doc.AddFeature(F); }
 

@@ -13,8 +13,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Libraries\cnMaestroAPI\cnMaestroAPI\cnMaestroAPI.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj" />
-    <ProjectReference Include="..\CommonCalculations\CommonCalculations.csproj" />
   </ItemGroup>
 
 </Project>

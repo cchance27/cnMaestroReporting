@@ -1,7 +1,6 @@
 ﻿using cnMaestroAPI.cnDataType;
 using cnMaestroReporting.Domain;
 using cnMaestroReporting.Prometheus.Entities;
-using CommonCalculations;
 using MemoizeRedis;
 using Microsoft.Extensions.Configuration;
 using System;
@@ -11,6 +10,8 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using CommonCalculations;
+using cnSNMP;
 
 namespace cnMaestroReporting.CLI
 {
@@ -20,12 +21,15 @@ namespace cnMaestroReporting.CLI
         private static RadioConfig? _cambiumRadios; // Holds the model configurations we use for various cambium devices.
         private static IConfigurationRoot? _generalConfig; // Holds the general config for the app and plugins
         private static cnMaestroAPI.Manager? _cnAPIManager;
-        private static cnSNMP.Manager? _cnSNMPManager;  
+        private static cnSNMP.Manager? _cnSNMPManager; 
+        private static EngageIP.EIPSettings? _eipSettings;
+
         private static async Task Main()
         {
             _generalConfig = FetchConfiguration(); // Load our appSettings into generalConfig
             _cnAPIManager = new cnMaestroAPI.Manager();
-            _cnSNMPManager = new cnSNMP.Manager(_generalConfig.GetSection("snmp"));
+            _cnSNMPManager = new cnSNMP.Manager(_generalConfig.GetRequiredSection("snmp"));
+            _eipSettings = _generalConfig.GetSection("engageip").Get<EngageIP.EIPSettings>();
 
             Console.WriteLine("Getting cnMaestro Towers...");
             IList<CnTower> towersFromApi = await Memoize.WithRedisAsync(() => _cnAPIManager.GetTowersAsync());
@@ -48,9 +52,9 @@ namespace cnMaestroReporting.CLI
 
             // Let's get snmp values that we can't get from the cnMaestroAPI Currently.
             Console.WriteLine("Polling SNMP from SMs...");
-            cnSNMP.CnSnmpResult[]? snmpResultsSm = await Memoize.WithRedisAsync(() => _cnSNMPManager.GetMultipleDeviceOids(onlineSmIpAddresses, cnSNMP.OIDs.smAirDelayNs, cnSNMP.OIDs.smFrequencyHz)); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
+            cnSNMP.CnSnmpResult[]? snmpResultsSm = _cnSNMPManager.GetMultipleDeviceOids(onlineSmIpAddresses, cnSNMP.OIDs.smAirDelayNs, cnSNMP.OIDs.smFrequencyHz); 
             Console.WriteLine("Polling SNMP from APs...");
-            cnSNMP.CnSnmpResult[]? snmpResultsAp = await Memoize.WithRedisAsync(() => _cnSNMPManager.GetMultipleDeviceOids(onlineApIpAddresses, cnSNMP.OIDs.sysContact)); // If we ever want to grab filters, but right now cant check vlan via snmp? SNMP.OIDs.filterPPPoE, SNMP.OIDs.filterAllIpv4, SNMP.OIDs.filterAllIpv6, SNMP.OIDs.filterArp, SNMP.OIDs.filterAllOther, SNMP.OIDs.filterDirection);
+            cnSNMP.CnSnmpResult[]? snmpResultsAp = _cnSNMPManager.GetMultipleDeviceOids(onlineApIpAddresses, cnSNMP.OIDs.sysContact);
 
             Console.WriteLine("Build Our Final DTO for AccessPointInfo...");
             IDictionary<ESN, AccessPointRadioInfo> apInfo = GenerateAllAccessPointInfo(onlineDevicesFromApi, onlineStatisticsFromApi, snmpResultsAp);
@@ -82,12 +86,16 @@ namespace cnMaestroReporting.CLI
             var ApDlTp = await Prometheus.API.QueryAllDlMaxThroughput("30d");
             var ApUlTp = await Prometheus.API.QueryAllUlMaxThroughput("30d");
 
-            return new PromNetworkData(ApDl30d, ApUl30d, ApDlTp, ApUlTp, ApDl7d, ApUl7d, ApDl1d, ApUl1d);
+            var APMPGain = await Prometheus.API.QueryAllAvgMultiplexingGain("30d");
+            var APGrpSize = await Prometheus.API.QueryAllAvgGroupSize("30d");
+
+            return new PromNetworkData(ApDl30d, ApUl30d, ApDlTp, ApUlTp, ApDl7d, ApUl7d, ApDl1d, ApUl1d, APMPGain, APGrpSize);
         }
 
         private static List<SubscriberRadioInfo> GenerateAllSmInfo(Dictionary<ESN, CnDevice> onlineDevicesFromApi, IEnumerable<CnStatistics> onlineStatisticsFromApi, cnSNMP.CnSnmpResult[]? snmpResultsSm, IDictionary<ESN, AccessPointRadioInfo> apInfo, IList<CnTower> towerInfo)
         {
             ArgumentNullException.ThrowIfNull(snmpResultsSm);
+
             ConcurrentBag<SubscriberRadioInfo> outputBag = new();
 
             Console.WriteLine("Generating All SubscriberRadioInfo Information");
@@ -110,7 +118,30 @@ namespace cnMaestroReporting.CLI
                     };
                 });
 
-            return outputBag.ToList(); 
+            var eip = new EngageIP.Session(_eipSettings);
+
+            List<SubscriberRadioInfo> output = outputBag?.ToList() ?? new List<SubscriberRadioInfo>();
+            for(var i = 0; i < output.Count(); i++)
+            {
+                Console.WriteLine($"Looking up EIP for {output[i].Name} ({output[i].Esn})");
+                var eipResult = eip.lookupPackageByUserOrEsn(output[i].Esn);
+                if (eipResult is not null && eipResult.HasValue)
+                {
+                    var updatedWithEip = output[i];
+                    //eipResult.Value.ClientName;
+                    //eipResult.Value.Owner;
+                    //eipResult.Value.Answer;
+                    updatedWithEip.EIPAccount = eipResult.Value.ClientName;
+                    updatedWithEip.EIPService = eipResult.Value.Service;
+                    updatedWithEip.EIPValue = eipResult.Value.Value;
+                    //eipResult.Value.ExpDate;
+                    //eipResult.Value.IsBusinessAccount;
+
+                    output[i] = updatedWithEip;
+                }
+            }
+
+            return output.ToList();
         }
 
         private static IDictionary<ESN, AccessPointRadioInfo> GenerateAllAccessPointInfo(Dictionary<ESN, CnDevice> onlineDevicesFromApi, IEnumerable<CnStatistics> onlineStatisticsFromApi, cnSNMP.CnSnmpResult[]? snmpResultsAp)
@@ -223,8 +254,8 @@ namespace cnMaestroReporting.CLI
             DateTime startTime = (DateOnly.FromDateTime(DateTime.Now).AddDays(-30)).ToDateTime(TimeOnly.MinValue);
             DateTime lastNight = (DateOnly.FromDateTime(DateTime.Now).AddDays(-1)).ToDateTime(TimeOnly.MaxValue);
 
-            var cnrs = await Memoize.WithRedisAsync(() => _cnAPIManager.GetDevicePerfAsync(ap.mac, startTime, lastNight));
-            var cnalarms = await Memoize.WithRedisAsync(() => _cnAPIManager.GetDeviceAlarmsHistoryAsync(ap.mac, startTime, lastNight, cnMaestroAPI.JsonType.CnSeverity.major));
+            var cnrs = await _cnAPIManager.GetDevicePerfAsync(ap.mac, startTime, lastNight);
+            var cnalarms = await _cnAPIManager.GetDeviceAlarmsHistoryAsync(ap.mac, startTime, lastNight, cnMaestroAPI.JsonType.CnSeverity.major);
 
             Dictionary<string, CnFixedRadioPerformance> cnradios = cnrs.ToDictionary(r => r.timestamp, r => r.radio);
 
@@ -245,10 +276,10 @@ namespace cnMaestroReporting.CLI
                 Tower = ap.tower,
                 Statistics = cnradios.Where(rs => rs.Value is not null).Select(rs => new AccessPointStatistic { 
                     TimeStamp = rs.Key,
-                    DownlinkThroughput = (double)rs.Value.dl_throughput, 
-                    DownlinkUtilization = (double)rs.Value.dl_frame_utilization, 
-                    UplinkThroughput = (double)rs.Value.ul_throughput, 
-                    UplinkUtilization = (double)rs.Value.ul_frame_utilization
+                    DownlinkThroughput = (double)(rs.Value.dl_throughput ?? 0), 
+                    DownlinkUtilization = (double)(rs.Value.dl_frame_utilization ?? 0), 
+                    UplinkThroughput = (double)(rs.Value.ul_throughput ?? 0), 
+                    UplinkUtilization = (double)(rs.Value.ul_frame_utilization ?? 0)
                 }),
                 Azimuth = 0,
                 Downtilt = 0,
@@ -273,9 +304,10 @@ namespace cnMaestroReporting.CLI
         {
             ArgumentNullException.ThrowIfNull(_cambiumRadios);
             ArgumentNullException.ThrowIfNull(tower);
+            ArgumentNullException.ThrowIfNull(smSnmp);
 
-            Double.TryParse(smSnmp.Where(s => s.oid == cnSNMP.OIDs.smFrequencyHz ).FirstOrDefault().value, out double smFrequencyHz);
-            Int32.TryParse(smSnmp.Where(s => s.oid == cnSNMP.OIDs.smAirDelayNs).FirstOrDefault().value, out int smAirDelayNs);
+            Double.TryParse(smSnmp.Where(s => s.oid == OIDs.smFrequencyHz ).FirstOrDefault()?.value, out double smFrequencyHz);
+            Int32.TryParse(smSnmp?.Where(s => s.oid == OIDs.smAirDelayNs).FirstOrDefault()?.value, out int smAirDelayNs);
 
             double smDistanceM = RFCalc.MetersFromAirDelay(smAirDelayNs, smFrequencyHz, false);
 
@@ -305,9 +337,8 @@ namespace cnMaestroReporting.CLI
                 Tx: _cambiumRadios.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain),
                 Rx: _cambiumRadios.AP[apDevice.product].Radio(apTx));
 
-            Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
+            //Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
             
-            //TODO: change coordinate system to use a strongly typed lat/long not the coordinates from cnLocation that are just an array as its confusing.
             var GeoDistance = GeoCalc.GeoDistance((double)smDevice.location.coordinates[1], (double)smDevice.location.coordinates[0], (double)tower.location.coordinates[1], (double)tower.location.coordinates[0]);
 
             return new SubscriberRadioInfo()

@@ -13,26 +13,26 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="cnMaestroAPI" Version="1.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="6.0.0-rc.2.21480.5">
+    <PackageReference Include="CommonCalculations" Version="1.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="6.0.1">
       <TreatAsUsed>true</TreatAsUsed>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="6.0.0-rc.2.21480.5">
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="6.0.0">
       <TreatAsUsed>true</TreatAsUsed>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="6.0.0-rc.2.21480.5">
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="6.0.0">
       <TreatAsUsed>true</TreatAsUsed>
     </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\FixedDeviceAudit\EngageIP\EngageIP.csproj" />
+    <ProjectReference Include="..\..\Libraries\cnMaestroAPI\cnMaestroAPI\cnMaestroAPI.csproj" />
     <ProjectReference Include="..\..\Libraries\cnSNMP\cnSNMP\cnSNMP.csproj" />
-    <ProjectReference Include="..\..\Libraries\MemoizeRedis\MemoizeRedis.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Output.KML\cnMaestroReporting.Output.KML.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Output.PTPPRJ\cnMaestroReporting.Output.PTPPRJ.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Output.XLSX\cnMaestroReporting.Output.XLSX.csproj" />
-    <ProjectReference Include="..\CommonCalculations\CommonCalculations.csproj" />
     <ProjectReference Include="..\PowerPointReport\cnMaestroReporting.Output.PPTX.csproj" />
   </ItemGroup>
 

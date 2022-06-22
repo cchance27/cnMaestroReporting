@@ -288,7 +288,7 @@ namespace cnMaestroReporting.Output.PPTX
                     }
                     else
                     {
-                        table[col, row].TextFrame.Text = dataArray[row - 1][col];
+                        table[col, row].TextFrame.Text = dataArray[row - 1][col] ?? "";
                     }
 
                     table[col, row].TextFrame.Paragraphs[0].TextRanges[0].LatinFont = new TextFont("Arial Narrow");

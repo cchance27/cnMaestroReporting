@@ -96,16 +96,23 @@ namespace cnMaestroReporting.Domain
         public string UplinkModulation { get; set; }
 
         [KMLConfig(Hidden = true)]
-        public readonly string DlMod { get => ModToQAM(int.Parse(DownlinkModulation.Split("X")[0])); }
+        public string DlMod { get => ModToQAM(int.Parse(DownlinkModulation?.Split("X")[0] ?? "1")); }
 
         [KMLConfig(Hidden = true)]
-        public readonly string UlMod { get => ModToQAM(int.Parse(UplinkModulation.Split("X")[0])); }
+        public string UlMod { get => ModToQAM(int.Parse(UplinkModulation?.Split("X")[0] ?? "1")); }
 
         [KMLConfig(Hidden = true)]
-        public readonly string DlMimo { get => DownlinkModulation.Split("-")[1]; }
+        public string DlMimo { get => DownlinkModulation?.Split("-")[1] ?? "A"; }
 
         [KMLConfig(Hidden = true)]
-        public readonly string UlMimo { get => UplinkModulation.Split("-")[1]; }
+        public string UlMimo { get => UplinkModulation?.Split("-")[1] ?? "A"; }
+
+        public string EIPAccount { get; set; }
+ 
+        public string EIPService { get; set; }
+
+        public double EIPValue { get; set; }
+
         private static string ModToQAM(int canopyModulation)
         {
             canopyModulation = canopyModulation - 1;

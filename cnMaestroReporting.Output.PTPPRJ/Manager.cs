@@ -45,8 +45,15 @@ namespace cnMaestroReporting.Output.PTPPRJ
             return subscribers.Where(
                 sm => sm.Latitude != 0 &&
                 sm.Longitude != 0 &&
-                sm.DistanceGeoM < settings.SmInvalidationRangeM)
+                sm.DistanceGeoM < settings.SmInvalidBeyondRangeM &&
+                AirDelayVsGeoDistance(sm.DistanceM, sm.DistanceGeoM, settings.SmDistanceDiffValidM))
                 .OrderBy(sm => sm.Name).ToList();
+        }
+
+        public bool AirDelayVsGeoDistance(int airdelayM, int geodistanceM, int allowableM)
+        {
+            var difference = Math.Abs(airdelayM - geodistanceM);
+            return difference <= allowableM;
         }
 
         private string GenerateOutputFilename(string filename)

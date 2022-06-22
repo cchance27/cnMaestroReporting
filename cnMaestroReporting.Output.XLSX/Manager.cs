@@ -1,7 +1,6 @@
 ﻿using cnMaestroAPI.cnDataType;
 using cnMaestroReporting.Domain;
 using cnMaestroReporting.Prometheus.Entities;
-using CommonCalculations;
 using Microsoft.Extensions.Configuration;
 using OfficeOpenXml;
 using OfficeOpenXml.ConditionalFormatting;

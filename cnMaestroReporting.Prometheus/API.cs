@@ -38,6 +38,19 @@ namespace cnMaestroReporting.Prometheus
             var x = promUrl.SetQueryParam("query", $"avg_over_time((sum without()(up{{job =\"canopy450\"}}) or (0 * sum_over_time(up{{job = \"canopy450\"}}[{timerange}])))[{timerange}:30m])", false);
             return await x.GetAsync().ReceiveJson<PromApiResponse>();
         }
-        
+
+        public static async Task<PromApiResponse> QueryAllAvgGroupSize(string timerange)
+        {
+            var x = promUrl.SetQueryParam("query", $"avg_over_time(frUtlLowMumimoDownlinkAvgGroupSize[{timerange}])/100", false);
+            return await x.GetAsync().ReceiveJson<PromApiResponse>();
+        }
+
+        public static async Task<PromApiResponse> QueryAllAvgMultiplexingGain(string timerange)
+        {
+            var x = promUrl.SetQueryParam("query", $"avg_over_time(frUtlLowMumimoDownlinkMultiplexingGain[{timerange}])/100", false);
+            return await x.GetAsync().ReceiveJson<PromApiResponse>();
+        }
+
+
     }
 }

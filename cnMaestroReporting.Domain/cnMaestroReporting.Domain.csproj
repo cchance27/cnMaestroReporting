@@ -5,12 +5,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="cnMaestroAPI" Version="1.2.0" />
+    <PackageReference Include="CommonCalculations" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Libraries\cnMaestroAPI\cnMaestroAPI\cnMaestroAPI.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Prometheus\cnMaestroReporting.Prometheus.csproj" />
-    <ProjectReference Include="..\CommonCalculations\CommonCalculations.csproj" />
   </ItemGroup>
 
 </Project>

@@ -11,6 +11,7 @@ namespace cnMaestroReporting.Domain
         public string IP { get; set; }
 
         public string Esn { get; set; }
+        public bool Online { get; set; }
 
         [KMLConfig(Hidden = true)]
         public string Tower { get; set; }

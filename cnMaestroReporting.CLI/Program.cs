@@ -30,6 +30,7 @@ namespace cnMaestroReporting.CLI
             _cnAPIManager = new cnMaestroAPI.Manager();
             _cnSNMPManager = new cnSNMP.Manager(_generalConfig.GetRequiredSection("snmp"));
             _eipSettings = _generalConfig.GetSection("engageip").Get<EngageIP.EIPSettings>();
+            var includeOffline = _generalConfig.GetValue<bool>("includeOffline");
 
             Console.WriteLine("Getting cnMaestro Towers...");
             IList<CnTower> towersFromApi = await Memoize.WithRedisAsync(() => _cnAPIManager.GetTowersAsync());
@@ -44,6 +45,14 @@ namespace cnMaestroReporting.CLI
             Console.WriteLine("Filtering Devices to Online Devices/Statistics...");
             Dictionary<ESN, CnDevice> onlineDevicesFromApi = devicesFromApi.DistinctBy(dev => dev.mac).Where(dev => dev.status == "online").ToDictionary(dev => (ESN)dev.mac);
             IEnumerable<CnStatistics> onlineStatisticsFromApi = deviceStatisticsFromApi.Where(devStat => onlineDevicesFromApi.ContainsKey(devStat.mac));
+
+            Dictionary<ESN, CnDevice> offlineDevicesFromApi = new();
+            List<CnStatistics> offlineStatisticsFromApi = new();
+            if (includeOffline)
+            {
+                offlineDevicesFromApi = devicesFromApi.DistinctBy(dev => dev.mac).Where(dev => dev.status == "offline").ToDictionary(dev => (ESN)dev.mac);
+                offlineStatisticsFromApi = deviceStatisticsFromApi.Where(devStat => offlineDevicesFromApi.ContainsKey(devStat.mac)).ToList();
+            }
 
             // Build a list of online ips for snmp checks
             Console.WriteLine("Building Online Device Arrays...");
@@ -60,7 +69,7 @@ namespace cnMaestroReporting.CLI
             IDictionary<ESN, AccessPointRadioInfo> apInfo = GenerateAllAccessPointInfo(onlineDevicesFromApi, onlineStatisticsFromApi, snmpResultsAp);
 
             Console.WriteLine("Build Our Final DTO for SubscriberRadioInfo...");
-            List<SubscriberRadioInfo> smInfo = GenerateAllSmInfo(onlineDevicesFromApi, onlineStatisticsFromApi, snmpResultsSm, apInfo, towersFromApi);
+            List<SubscriberRadioInfo> smInfo = GenerateAllSmInfo(onlineDevicesFromApi, onlineStatisticsFromApi, offlineDevicesFromApi, offlineStatisticsFromApi, snmpResultsSm, apInfo, towersFromApi);
 
             // Output to various ways.
             OutputPPTX(smInfo, apInfo, promNetworkData);
@@ -92,7 +101,7 @@ namespace cnMaestroReporting.CLI
             return new PromNetworkData(ApDl30d, ApUl30d, ApDlTp, ApUlTp, ApDl7d, ApUl7d, ApDl1d, ApUl1d, APMPGain, APGrpSize);
         }
 
-        private static List<SubscriberRadioInfo> GenerateAllSmInfo(Dictionary<ESN, CnDevice> onlineDevicesFromApi, IEnumerable<CnStatistics> onlineStatisticsFromApi, cnSNMP.CnSnmpResult[]? snmpResultsSm, IDictionary<ESN, AccessPointRadioInfo> apInfo, IList<CnTower> towerInfo)
+        private static List<SubscriberRadioInfo> GenerateAllSmInfo(Dictionary<ESN, CnDevice> onlineDevicesFromApi, IEnumerable<CnStatistics> onlineStatisticsFromApi, Dictionary<ESN, CnDevice> offlineDevicesFromApi, IEnumerable<CnStatistics> offlineStatisticsFromApi, cnSNMP.CnSnmpResult[]? snmpResultsSm, IDictionary<ESN, AccessPointRadioInfo> apInfo, IList<CnTower> towerInfo)
         {
             ArgumentNullException.ThrowIfNull(snmpResultsSm);
 
@@ -115,8 +124,34 @@ namespace cnMaestroReporting.CLI
                             smStats: stat,
                             smSnmp: thisSnmpResults.oidResult, 
                             tower: towerInfo.Where(x => x.name == apInfo[stat.ap_mac].Tower).FirstOrDefault()));
-                    };
+                    }
+                    else
+                    {
+                        // We have an SM without a SNMP Response
+
+                        Console.WriteLine($"SM Without SNMP Response: {stat.mac}");
+                        outputBag.Add(GenerateSmRadioInfo(
+                            apDevice: onlineDevicesFromApi[stat.ap_mac],
+                            apInfo: apInfo[stat.ap_mac],
+                            smDevice: onlineDevicesFromApi[stat.mac],
+                            smStats: stat,
+                            smSnmp: null,
+                            tower: towerInfo.Where(x => x.name == apInfo[stat.ap_mac].Tower).FirstOrDefault()));
+                    }
                 });
+
+            foreach (var stat in offlineStatisticsFromApi.Where(stat => stat.mode == DeviceMode.sm.ToString()).DistinctBy(stat => stat.mac))
+            {
+                Console.WriteLine($"Offline SM: {stat.mac}, AP Online: {onlineDevicesFromApi.ContainsKey(stat.ap_mac)}");
+                if (onlineDevicesFromApi.ContainsKey(stat.ap_mac))
+                    outputBag.Add(GenerateSmRadioInfo(
+                            apDevice: onlineDevicesFromApi[stat.ap_mac], // AP Has to be online to be handled
+                            apInfo: apInfo[stat.ap_mac],
+                            smDevice: offlineDevicesFromApi[stat.mac], // This is an offline SM
+                            smStats: stat,
+                            smSnmp: null,
+                            tower: towerInfo.Where(x => x.name == apInfo[stat.ap_mac].Tower).FirstOrDefault()));
+            };
 
             var eip = new EngageIP.Session(_eipSettings);
 
@@ -249,7 +284,6 @@ namespace cnMaestroReporting.CLI
         {
             ArgumentNullException.ThrowIfNull(_cnAPIManager);
 
-
             // We're going to use the start of the date 30 days ago, and the end of yesterday, this also helps with caching and nice round dates, maybe we should shift to have this global for 
             DateTime startTime = (DateOnly.FromDateTime(DateTime.Now).AddDays(-30)).ToDateTime(TimeOnly.MinValue);
             DateTime lastNight = (DateOnly.FromDateTime(DateTime.Now).AddDays(-1)).ToDateTime(TimeOnly.MaxValue);
@@ -304,12 +338,18 @@ namespace cnMaestroReporting.CLI
         {
             ArgumentNullException.ThrowIfNull(_cambiumRadios);
             ArgumentNullException.ThrowIfNull(tower);
-            ArgumentNullException.ThrowIfNull(smSnmp);
 
-            Double.TryParse(smSnmp.Where(s => s.oid == OIDs.smFrequencyHz ).FirstOrDefault()?.value, out double smFrequencyHz);
-            Int32.TryParse(smSnmp?.Where(s => s.oid == OIDs.smAirDelayNs).FirstOrDefault()?.value, out int smAirDelayNs);
+            double smDistanceM = -1;
+            int smAirDelayNs = -1;
+            double smFrequencyHz = -1;
 
-            double smDistanceM = RFCalc.MetersFromAirDelay(smAirDelayNs, smFrequencyHz, false);
+            if (smSnmp is not null)
+            {
+                _ = Double.TryParse(smSnmp.Where(s => s.oid == OIDs.smFrequencyHz).FirstOrDefault()?.value, out smFrequencyHz);
+                _ = Int32.TryParse(smSnmp.Where(s => s.oid == OIDs.smAirDelayNs).FirstOrDefault()?.value, out smAirDelayNs);
+                smDistanceM = RFCalc.MetersFromAirDelay(smAirDelayNs, smFrequencyHz, false);
+            }
+
 
             // If we have smGain from cnMaestro let's use it if not fall back to our configured value.
             _ = Int32.TryParse(smStats.gain, out int smGain);
@@ -322,20 +362,20 @@ namespace cnMaestroReporting.CLI
                 apTx = _cambiumRadios.AP[apDevice.product].MaxTransmit;
 
             // smEPL === The power transmitted from the AP and what we expect to see on the SM
-            var smEPL = RFCalc.EstimatedPowerLevel(
+            var smEPL = smFrequencyHz > 0 ? RFCalc.EstimatedPowerLevel(
                 smDistanceM,
                 smFrequencyHz,
                 0,
                 Tx: _cambiumRadios.AP[apDevice.product].Radio(apTx),
-                Rx: _cambiumRadios.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain));
+                Rx: _cambiumRadios.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain)) : 0;
 
             // apEPL === The power transmitted from the SM and what we expect to see on the AP
-            var apEPL = RFCalc.EstimatedPowerLevel(
+            var apEPL = smFrequencyHz > 0 ? RFCalc.EstimatedPowerLevel(
                 smDistanceM,
                 smFrequencyHz,
                 0,
                 Tx: _cambiumRadios.SM[smDevice.product].Radio(smStats.radio.tx_power, smGain),
-                Rx: _cambiumRadios.AP[apDevice.product].Radio(apTx));
+                Rx: _cambiumRadios.AP[apDevice.product].Radio(apTx)) : 0;
 
             //Console.WriteLine($"Generated SM DeviceInfo: {smDevice.name}");
             
@@ -345,6 +385,7 @@ namespace cnMaestroReporting.CLI
             {
                 Name = smDevice.name,
                 Esn = smDevice.mac,
+                Online = smFrequencyHz > 0,
                 Tower = apDevice.tower,
                 Firmware = smDevice.software_version,
                 Latitude = smDevice.location.coordinates[1],

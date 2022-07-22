@@ -49,7 +49,7 @@ namespace cnMaestroReporting.Output.KML
             greenIcon = CreateIconStyle(nameof(greenIcon), settings.Icons["Good"]);
             whiteIcon = CreateIconStyle(nameof(whiteIcon), settings.Icons["Unknown"]);
             towerIcon = CreateIconStyle(nameof(towerIcon), settings.Icons["Tower"]);
-            Subscribers = subscribers.OrderBy(sm => sm.Name);
+            Subscribers = subscribers.OrderBy(sm => sm.Name).Where(sm => sm.Online == true);
             Towers = towers.OrderBy(tower => tower.Key);
             AccessPoints = accesspoints.OrderBy(ap => ap.Name); // Name sorted dictionary.
 

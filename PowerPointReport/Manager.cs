@@ -33,6 +33,9 @@ namespace cnMaestroReporting.Output.PPTX
         {
             Console.WriteLine("\nStarting PPTX Generation");
 
+            // PPTX Only Works with Online SMs
+            smInfo = smInfo.Where(sm => sm.Online == true).ToList();
+
             var settings = (FileName: " ", Test: 0);
             double[] width7030 = { 0.70, 0.30 };
             double[] width502525 = { 0.50, 0.25, 0.25 };

@@ -32,7 +32,8 @@ namespace cnMaestroReporting.Output.PTPPRJ
 
             _fileName = GenerateOutputFilename(settings.FileName);
 
-            _subscribers = FilterSubscribersByInvalidRange(subscribers);
+            // Discard Offline SMs and Invalid Range SMs
+            _subscribers = FilterSubscribersByInvalidRange(subscribers).Where(x => x.Online == true).ToList();
 
             _towers = towers.OrderBy(tower => tower.Key).ToList();
 

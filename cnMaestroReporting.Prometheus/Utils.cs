@@ -3,6 +3,22 @@ using System.Collections.Generic;
 
 namespace Utils
 {
+
+    public static class StringExtensions
+    {
+        public static int DecimalStringToInt(this String str)
+        {
+            return Convert.ToInt32(Math.Round(decimal.Parse(str)));
+        }
+    }
+    public static class DateTimeExtensions
+    {
+        public static string ToRFC3339(this DateTime date)
+        {
+            return date.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fffK");
+        }
+    }// https://stackoverflow.com/questions/5017782/c-sharp-datetime-rfc-3339-format
+
     public static class Bytes
     {
         public enum Unit
@@ -170,8 +186,7 @@ namespace Utils
         }
         private static Dictionary<Unit, Definition> definitions = null;
 
-        private static void AddDefinitions(Dictionary<Unit, Definition> definitions
-                                    , Prefix prefix, IEnumerable<Unit> units)
+        private static void AddDefinitions(Dictionary<Unit, Definition> definitions, Prefix prefix, IEnumerable<Unit> units)
         {
             int index = 1;
             foreach (var unit in units)

@@ -55,7 +55,7 @@ namespace cnMaestroReporting.Output.XLSX
         /// This takes our Enumerable data and generates an Excel Worksheet to a filename.
         /// </summary>
         /// <param name="subRadioInfo"></param>
-        public void Generate(IEnumerable<SubscriberRadioInfo> subRadioInfo, IDictionary<ESN, AccessPointRadioInfo> apRadioInfo, PromNetworkData promNetworkData, IEnumerable<KeyValuePair<string, CnLocation>> allTowers)
+        public void Generate(IEnumerable<SubscriberRadioInfo> subRadioInfo, IDictionary<ESN, AccessPointRadioInfo> apRadioInfo, PromNetworkData promNetworkData, IEnumerable<KeyValuePair<string, CnLocation>> allTowers, int days = 7)
         {
             GenerateSubscriberWorkSheet(subRadioInfo.Where(dev =>
                (dev.SmAPL < settings.LowSignal || dev.ApAPL < settings.LowSignal)), 
@@ -79,7 +79,7 @@ namespace cnMaestroReporting.Output.XLSX
                 (dev.AvgApSnrH < settings.LowSNR || dev.AvgApSnrV < settings.LowSignal || dev.AvgSmSnrH < settings.LowSNR || dev.AvgSmSnrV < settings.LowSignal)), 
                 "APs with Low Avg SM SNRs");
          
-            GenerateAccessPointAvailabilityWorksheet(apAverageInfo, "All AccessPoint");
+            GenerateAccessPointAvailabilityWorksheet(apAverageInfo, "All AccessPoint", days);
         }
 
         /// <summary>
@@ -130,7 +130,7 @@ namespace cnMaestroReporting.Output.XLSX
             dataWS.Cells[dataWS.Dimension.Address].AutoFitColumns();
         }
 
-        public void GenerateAccessPointAvailabilityWorksheet(IEnumerable<AccessPointAverageInfo> apAvgData, string WorksheetName)
+        public void GenerateAccessPointAvailabilityWorksheet(IEnumerable<AccessPointAverageInfo> apAvgData, string WorksheetName, int days = 7)
         {
             int apDataCount = apAvgData.Count() == 0 ? 1 : apAvgData.Count();
 
@@ -161,12 +161,8 @@ namespace cnMaestroReporting.Output.XLSX
                 settings.LowSNR, Color.Red, Color.Green, new int[] { 32, 24, 17, 10, 0 }, "AvgSmSNRV", "Average SNR on the SM-V (sm side of the connection in Vertical Polarity");
 
 
-            RenameColumn("DL30d", "DL tb/30d", ref dataTable);
-            RenameColumn("DL7d", "DL tb/7d", ref dataTable);
-            RenameColumn("DL1d", "DL tb/1d", ref dataTable);
-            RenameColumn("UL30d", "UL tb/30d", ref dataTable);
-            RenameColumn("UL7d", "UL tb/7d", ref dataTable);
-            RenameColumn("UL1d", "UL tb/1d", ref dataTable);
+            RenameColumn("DL", $"DL tb/{days}d", ref dataTable);
+            RenameColumn("UL", $"UL tb/{days}d", ref dataTable);
             dataTable.ShowFilter = false;
 
             dataWS.Cells[dataWS.Dimension.Address].AutoFitColumns();

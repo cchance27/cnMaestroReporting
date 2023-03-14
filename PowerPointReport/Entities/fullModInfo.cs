@@ -4,5 +4,10 @@
     {
         public string series { get; set; } = series;
     }
+
+    public record fullModInfoHistory(string series, float Latest, float Previous) : ISeriesInfo
+    {
+        public string series { get; set; } = series;
+    }
 }
 

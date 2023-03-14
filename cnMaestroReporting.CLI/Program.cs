@@ -21,11 +21,36 @@ namespace cnMaestroReporting.CLI
         private static RadioConfig? _cambiumRadios; // Holds the model configurations we use for various cambium devices.
         private static IConfigurationRoot? _generalConfig; // Holds the general config for the app and plugins
         private static cnMaestroAPI.Manager? _cnAPIManager;
-        private static cnSNMP.Manager? _cnSNMPManager; 
+        private static cnSNMP.Manager? _cnSNMPManager;
         private static EngageIP.EIPSettings? _eipSettings;
+        private static int days;
+
+        private static async Task<PromNetworkData> getCurrentProm7() => await getPrometheusData(7, null);
+        private static async Task<PromNetworkData> getPreviousProm7() {
+            return await getPrometheusData(7, DateTime.Now.Subtract(System.TimeSpan.FromDays(days)));
+        }
+
+        private static string[] onlineSmIpAddresses = Array.Empty<string>();
+        private static string[] onlineApIpAddresses = Array.Empty<string>();
+
+        private async static Task<cnSNMP.CnSnmpResult[]?> grabSmSnmp()
+        {
+            await Task.Delay(100);
+            Console.WriteLine("Polling SNMP from SMs...");
+            return _cnSNMPManager.GetMultipleDeviceOids(onlineSmIpAddresses, cnSNMP.OIDs.smAirDelayNs, cnSNMP.OIDs.smFrequencyHz);
+        }
+
+        private async static Task<cnSNMP.CnSnmpResult[]?> grabApSnmp()
+        {
+            await Task.Delay(100);
+            Console.WriteLine("Polling SNMP from APs...");
+            return _cnSNMPManager.GetMultipleDeviceOids(onlineApIpAddresses, cnSNMP.OIDs.sysContact);
+        }
 
         private static async Task Main()
         {
+            days = 7;
+
             _generalConfig = FetchConfiguration(); // Load our appSettings into generalConfig
             _cnAPIManager = new cnMaestroAPI.Manager();
             _cnSNMPManager = new cnSNMP.Manager(_generalConfig.GetRequiredSection("snmp"));
@@ -38,8 +63,13 @@ namespace cnMaestroReporting.CLI
             IList<CnStatistics> deviceStatisticsFromApi = await Memoize.WithRedisAsync(() => _cnAPIManager.GetMultipleDevStatsAsync(""));
             Console.WriteLine("Getting cnMaestro Devices...");
             IList<CnDevice> devicesFromApi = await Memoize.WithRedisAsync(() => _cnAPIManager.GetMultipleDevicesAsync(""));
+
             Console.WriteLine("Getting Prometheus Data...");
-            PromNetworkData? promNetworkData = await Memoize.WithRedisAsync(() => getPrometheusData());
+            PromNetworkData? promNetworkData = await Memoize.WithRedisAsync(() => getCurrentProm7());
+
+            Console.WriteLine($"Getting Previous Prometheus Data {days} ago {DateTime.Now.Subtract(System.TimeSpan.FromDays(days))}...");
+            PromNetworkData? promNetworkDataPrevious = await Memoize.WithRedisAsync(() => getPreviousProm7());
+
 
             //Dictionary of all Devices so we can lookup by mac address
             Console.WriteLine("Filtering Devices to Online Devices/Statistics...");
@@ -56,52 +86,49 @@ namespace cnMaestroReporting.CLI
 
             // Build a list of online ips for snmp checks
             Console.WriteLine("Building Online Device Arrays...");
-            string[] onlineSmIpAddresses = onlineStatisticsFromApi.DistinctBy(devStat => devStat.mac).Where(devStat => devStat.mode == DeviceMode.sm.ToString()).Select(dev => onlineDevicesFromApi[dev.mac].ip).ToArray();
-            string[] onlineApIpAddresses = onlineStatisticsFromApi.DistinctBy(devStat => devStat.mac).Where(devStat => devStat.mode == DeviceMode.ap.ToString()).Select(dev => onlineDevicesFromApi[dev.mac].ip).ToArray();
+            onlineSmIpAddresses = onlineStatisticsFromApi.DistinctBy(devStat => devStat.mac).Where(devStat => devStat.mode == DeviceMode.sm.ToString()).Select(dev => onlineDevicesFromApi[dev.mac].ip).ToArray();
+            onlineApIpAddresses = onlineStatisticsFromApi.DistinctBy(devStat => devStat.mac).Where(devStat => devStat.mode == DeviceMode.ap.ToString()).Select(dev => onlineDevicesFromApi[dev.mac].ip).ToArray();
 
-            // Let's get snmp values that we can't get from the cnMaestroAPI Currently.
-            Console.WriteLine("Polling SNMP from SMs...");
-            cnSNMP.CnSnmpResult[]? snmpResultsSm = _cnSNMPManager.GetMultipleDeviceOids(onlineSmIpAddresses, cnSNMP.OIDs.smAirDelayNs, cnSNMP.OIDs.smFrequencyHz); 
-            Console.WriteLine("Polling SNMP from APs...");
-            cnSNMP.CnSnmpResult[]? snmpResultsAp = _cnSNMPManager.GetMultipleDeviceOids(onlineApIpAddresses, cnSNMP.OIDs.sysContact);
-
+            cnSNMP.CnSnmpResult[]? snmpResultsAp = await Memoize.WithRedisAsync(() => grabApSnmp());
+            cnSNMP.CnSnmpResult[]? snmpResultsSm = await Memoize.WithRedisAsync(() => grabSmSnmp());
+            
             Console.WriteLine("Build Our Final DTO for AccessPointInfo...");
             IDictionary<ESN, AccessPointRadioInfo> apInfo = GenerateAllAccessPointInfo(onlineDevicesFromApi, onlineStatisticsFromApi, snmpResultsAp);
 
             Console.WriteLine("Build Our Final DTO for SubscriberRadioInfo...");
-            List<SubscriberRadioInfo> smInfo = GenerateAllSmInfo(onlineDevicesFromApi, onlineStatisticsFromApi, offlineDevicesFromApi, offlineStatisticsFromApi, snmpResultsSm, apInfo, towersFromApi);
+            List<SubscriberRadioInfo> smInfo = await GenerateAllSmInfo(onlineDevicesFromApi, onlineStatisticsFromApi, offlineDevicesFromApi, offlineStatisticsFromApi, snmpResultsSm, apInfo, towersFromApi);
 
             // Output to various ways.
-            OutputPPTX(smInfo, apInfo, promNetworkData);
-            OutputXLSX(towersFromApi, smInfo, apInfo, promNetworkData);
-            OutputKMZ(towersFromApi, apInfo, smInfo, promNetworkData);
-            OutputPTPPRJ(towersFromApi, apInfo, smInfo);
+            OutputPPTX(smInfo, apInfo, promNetworkData, promNetworkDataPrevious);
+            //OutputXLSX(towersFromApi, smInfo, apInfo, promNetworkData);
+            //OutputKMZ(towersFromApi, apInfo, smInfo, promNetworkData);
+            //OutputPTPPRJ(towersFromApi, apInfo, smInfo);
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadLine();
         }
 
-        private static async Task<PromNetworkData> getPrometheusData()
+        private static async Task<PromNetworkData> getPrometheusData(int days = 7, DateTime? endDateTime = null)
         {
-            var ApDl30d = await Prometheus.API.QueryAllDlTotal("30d");
-            var ApUl30d = await Prometheus.API.QueryAllUlTotal("30d");
+            string timeframe = $"{days}d";
 
-            var ApDl7d = await Prometheus.API.QueryAllDlTotal("7d");
-            var ApUl7d = await Prometheus.API.QueryAllUlTotal("7d");
+            var ApDl = await Prometheus.API.QueryAllDlTotal(timeframe, endDateTime);
+            var ApUl = await Prometheus.API.QueryAllUlTotal(timeframe, endDateTime);
 
-            var ApDl1d = await Prometheus.API.QueryAllDlTotal("1d");
-            var ApUl1d = await Prometheus.API.QueryAllUlTotal("1d");
+            var ApDlTp = await Prometheus.API.QueryAllDlMaxThroughput(timeframe, endDateTime);
+            var ApUlTp = await Prometheus.API.QueryAllUlMaxThroughput(timeframe, endDateTime);
 
-            var ApDlTp = await Prometheus.API.QueryAllDlMaxThroughput("30d");
-            var ApUlTp = await Prometheus.API.QueryAllUlMaxThroughput("30d");
+            var APMPGain = await Prometheus.API.QueryAllAvgMultiplexingGain(timeframe, endDateTime);
+            var APGrpSize = await Prometheus.API.QueryAllAvgGroupSize(timeframe, endDateTime);
+            
+            var SMCount = await Prometheus.API.QueryAllMaxSMCount(timeframe, endDateTime);
 
-            var APMPGain = await Prometheus.API.QueryAllAvgMultiplexingGain("30d");
-            var APGrpSize = await Prometheus.API.QueryAllAvgGroupSize("30d");
+            var SMDlMod = await Prometheus.API.QueryAllDlSMModulation(timeframe, endDateTime);
 
-            return new PromNetworkData(ApDl30d, ApUl30d, ApDlTp, ApUlTp, ApDl7d, ApUl7d, ApDl1d, ApUl1d, APMPGain, APGrpSize);
+            return new PromNetworkData(ApDl, ApUl, ApDlTp, ApUlTp, APMPGain, APGrpSize, SMCount, SMDlMod);
         }
 
-        private static List<SubscriberRadioInfo> GenerateAllSmInfo(Dictionary<ESN, CnDevice> onlineDevicesFromApi, IEnumerable<CnStatistics> onlineStatisticsFromApi, Dictionary<ESN, CnDevice> offlineDevicesFromApi, IEnumerable<CnStatistics> offlineStatisticsFromApi, cnSNMP.CnSnmpResult[]? snmpResultsSm, IDictionary<ESN, AccessPointRadioInfo> apInfo, IList<CnTower> towerInfo)
+        private static async Task<List<SubscriberRadioInfo>> GenerateAllSmInfo(Dictionary<ESN, CnDevice> onlineDevicesFromApi, IEnumerable<CnStatistics> onlineStatisticsFromApi, Dictionary<ESN, CnDevice> offlineDevicesFromApi, IEnumerable<CnStatistics> offlineStatisticsFromApi, cnSNMP.CnSnmpResult[]? snmpResultsSm, IDictionary<ESN, AccessPointRadioInfo> apInfo, IList<CnTower> towerInfo)
         {
             ArgumentNullException.ThrowIfNull(snmpResultsSm);
 
@@ -109,12 +136,14 @@ namespace cnMaestroReporting.CLI
 
             Console.WriteLine("Generating All SubscriberRadioInfo Information");
             onlineStatisticsFromApi
-                .Where(stat => stat.mode == DeviceMode.sm.ToString())
+                .Where(stat => 
+                    stat.mode == DeviceMode.sm.ToString() && 
+                    apInfo[stat.ap_mac] is not null)
                 .DistinctBy(stat => stat.mac)
                 .AsParallel()
                 .ForAll(stat =>
                 {
-                    var thisSnmpResults = snmpResultsSm.Where(s => s.ip == onlineDevicesFromApi[stat.mac].ip).First();
+                    var thisSnmpResults = snmpResultsSm.Where(s => s.ip == onlineDevicesFromApi[stat.mac].ip).FirstOrDefault();
                     if (thisSnmpResults is not null && thisSnmpResults.oidResult is not null)
                     {
                         outputBag.Add(GenerateSmRadioInfo(
@@ -140,7 +169,11 @@ namespace cnMaestroReporting.CLI
                     }
                 });
 
-            foreach (var stat in offlineStatisticsFromApi.Where(stat => stat.mode == DeviceMode.sm.ToString()).DistinctBy(stat => stat.mac))
+            foreach (var stat in offlineStatisticsFromApi
+                .Where(stat => 
+                    stat.mode == DeviceMode.sm.ToString() && 
+                    apInfo[stat.ap_mac] is not null)
+                .DistinctBy(stat => stat.mac))
             {
                 Console.WriteLine($"Offline SM: {stat.mac}, AP Online: {onlineDevicesFromApi.ContainsKey(stat.ap_mac)}");
                 if (onlineDevicesFromApi.ContainsKey(stat.ap_mac))
@@ -155,11 +188,13 @@ namespace cnMaestroReporting.CLI
 
             var eip = new EngageIP.Session(_eipSettings);
 
+            // Non-Parralel Lookup in engageip to avoid flooding, would be better if we could just get a table report and then do local lookups.
             List<SubscriberRadioInfo> output = outputBag?.ToList() ?? new List<SubscriberRadioInfo>();
             for(var i = 0; i < output.Count(); i++)
             {
-                Console.WriteLine($"Looking up EIP for {output[i].Name} ({output[i].Esn})");
-                var eipResult = eip.lookupPackageByUserOrEsn(output[i].Esn);
+                var currentESN = output[i].Esn;
+                Console.WriteLine($"Looking up EIP for {output[i].Name} ({currentESN})");
+                var eipResult = await Memoize.WithRedisAsync(() => eip.lookupPackageByUserOrEsn(currentESN));
                 if (eipResult is not null && eipResult.HasValue)
                 {
                     var updatedWithEip = output[i];
@@ -179,6 +214,7 @@ namespace cnMaestroReporting.CLI
             return output.ToList();
         }
 
+
         private static IDictionary<ESN, AccessPointRadioInfo> GenerateAllAccessPointInfo(Dictionary<ESN, CnDevice> onlineDevicesFromApi, IEnumerable<CnStatistics> onlineStatisticsFromApi, cnSNMP.CnSnmpResult[]? snmpResultsAp)
         {
             ArgumentNullException.ThrowIfNull(snmpResultsAp);
@@ -193,7 +229,7 @@ namespace cnMaestroReporting.CLI
                 {
                     var thisSnmpResults = snmpResultsAp.Where(s => s.ip == onlineDevicesFromApi[stat.mac].ip).First();
                     var sysContact = thisSnmpResults.oidResult?.Where(o => o.oid == cnSNMP.OIDs.sysContact).First();
-                    outputBag.TryAdd((ESN)stat.mac, GenerateAccessPoint(stat, onlineDevicesFromApi, sysContact?.value ?? "").GetAwaiter().GetResult());
+                    outputBag.TryAdd((ESN)stat.mac, GenerateAccessPoint(stat, onlineDevicesFromApi, sysContact?.value ?? "", days).GetAwaiter().GetResult());
                 });
 
             return outputBag;
@@ -205,7 +241,7 @@ namespace cnMaestroReporting.CLI
         private static async Task DeleteOldOfflineSMs(cnMaestroAPI.Manager cnManager, int daysBeforeDeleted)
         {
             var offlineDevicesOnly = await cnManager.GetMultipleDevicesAsync("&fields=name%2Cstatus%2Cstatus_time%2Cmac&status=offline&type=pmp");
-            offlineDevicesOnly = offlineDevicesOnly.Where((cn) => double.Parse(cn.status_time) > TimeSpan.FromDays(daysBeforeDeleted).TotalSeconds).ToList();
+            offlineDevicesOnly = offlineDevicesOnly.Where((cn) => double.Parse(cn.status_time) > System.TimeSpan.FromDays(daysBeforeDeleted).TotalSeconds).ToList();
 
             Console.WriteLine($"Removing Devices offline {daysBeforeDeleted}+ Days. (Total: {offlineDevicesOnly.Count()})");
 
@@ -213,7 +249,7 @@ namespace cnMaestroReporting.CLI
             Console.ReadLine();
             foreach (var cn in offlineDevicesOnly)
             {
-                Console.WriteLine($"{cn.mac}: {cn.name} {cn.status} for {TimeSpan.FromSeconds(double.Parse(cn.status_time)).ToString()} ({cn.status_time})");
+                Console.WriteLine($"{cn.mac}: {cn.name} {cn.status} for {System.TimeSpan.FromSeconds(double.Parse(cn.status_time)).ToString()} ({cn.status_time})");
                 var delResult = await cnManager.DeleteDeviceAsync(cn.mac);
                 Console.WriteLine($"  - Deletion: {delResult}");
             };
@@ -232,9 +268,9 @@ namespace cnMaestroReporting.CLI
             outputPTPPRJ.Save();
         }
 
-        private static void OutputPPTX(List<SubscriberRadioInfo> smInfo, IDictionary<ESN, AccessPointRadioInfo> apInfo, PromNetworkData promNetworkData)
+        private static void OutputPPTX(List<SubscriberRadioInfo> smInfo, IDictionary<ESN, AccessPointRadioInfo> apInfo, PromNetworkData promNetworkData, PromNetworkData promNetworkDataPrevious)
         {
-            var outputPPTX = new Output.PPTX.Manager(smInfo, apInfo, promNetworkData);
+            var outputPPTX = new Output.PPTX.Manager(smInfo, apInfo, promNetworkData, promNetworkDataPrevious);
         }
 
 
@@ -244,7 +280,7 @@ namespace cnMaestroReporting.CLI
 
             // Export to XLSX
             var outputXLSX = new Output.XLSX.Manager();
-            outputXLSX.Generate(subscriberInformation, apInformation, promNetworkData, towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.name, tower.location)));
+            outputXLSX.Generate(subscriberInformation, apInformation, promNetworkData, towers.Select(tower => new KeyValuePair<string, CnLocation>(tower.name, tower.location)), days);
             outputXLSX.Save();
         }
 
@@ -280,18 +316,18 @@ namespace cnMaestroReporting.CLI
         }
         #endregion
 
-        private static async Task<AccessPointRadioInfo> GenerateAccessPoint(CnStatistics ap, IDictionary<ESN, CnDevice> cnDevices, string sysContact)
+        private static async Task<AccessPointRadioInfo> GenerateAccessPoint(CnStatistics ap, IDictionary<ESN, CnDevice> cnDevices, string sysContact, int days)
         {
             ArgumentNullException.ThrowIfNull(_cnAPIManager);
 
-            // We're going to use the start of the date 30 days ago, and the end of yesterday, this also helps with caching and nice round dates, maybe we should shift to have this global for 
-            DateTime startTime = (DateOnly.FromDateTime(DateTime.Now).AddDays(-30)).ToDateTime(TimeOnly.MinValue);
+            // We're going to use the start of the date X days ago, and the end of yesterday, this also helps with caching and nice round dates, maybe we should shift to have this global for 
+            DateTime startTime = (DateOnly.FromDateTime(DateTime.Now).AddDays(-1 * days)).ToDateTime(TimeOnly.MinValue);
             DateTime lastNight = (DateOnly.FromDateTime(DateTime.Now).AddDays(-1)).ToDateTime(TimeOnly.MaxValue);
 
             var cnrs = await _cnAPIManager.GetDevicePerfAsync(ap.mac, startTime, lastNight);
             var cnalarms = await _cnAPIManager.GetDeviceAlarmsHistoryAsync(ap.mac, startTime, lastNight, cnMaestroAPI.JsonType.CnSeverity.major);
 
-            Dictionary<string, CnFixedRadioPerformance> cnradios = cnrs.ToDictionary(r => r.timestamp, r => r.radio);
+            Dictionary<string, CnFixedRadioPerformance> cnradios = cnrs.DistinctBy(x => x.timestamp).ToDictionary(r => r.timestamp, r => r.radio);
 
             var thisAp = cnDevices[ap.mac];
 
@@ -317,7 +353,7 @@ namespace cnMaestroReporting.CLI
                 }),
                 Azimuth = 0,
                 Downtilt = 0,
-                Uptime = TimeSpan.FromSeconds(Double.Parse(ap.status_time)),
+                Uptime = System.TimeSpan.FromSeconds(Double.Parse(ap.status_time)),
                 Alarms = cnalarms
             };
 
@@ -338,6 +374,7 @@ namespace cnMaestroReporting.CLI
         {
             ArgumentNullException.ThrowIfNull(_cambiumRadios);
             ArgumentNullException.ThrowIfNull(tower);
+            // TODO: Sometimes APs dont have towers, we need to handle these or drop them somewhere.
 
             double smDistanceM = -1;
             int smAirDelayNs = -1;

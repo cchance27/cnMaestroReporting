@@ -23,12 +23,8 @@ namespace cnMaestroReporting.Domain
         public int ColorCode { get; set; }
         public int AvgSmDistanceM { get; set; }
         public int MaxSmDistanceM { get; set; }
-        public decimal DL30d { get; set; }
-        public decimal UL30d { get; set; }
-        public decimal DL7d { get; set; }
-        public decimal UL7d { get; set; }
-        public decimal DL1d { get; set; }
-        public decimal UL1d { get; set; }
+        public decimal DL { get; set; }
+        public decimal UL { get; set; }
         public int AvgApPl { get; set; }
         public int WorstApPl { get; set; }
         public decimal AvgGroupSize { get; set; }
@@ -99,12 +95,8 @@ namespace cnMaestroReporting.Domain
                         //continue;
                     }
 
-                    var promDataDL30 = promNetworkData.ApDl.data.result.Where(x => x.metric.instance == apIP).FirstOrDefault();
-                    var promDataDL7 = promNetworkData.ApDl7Days.data.result.Where(x => x.metric.instance == apIP).FirstOrDefault();
-                    var promDataDL1 = promNetworkData.ApDl24Hours.data.result.Where(x => x.metric.instance == apIP).FirstOrDefault();
-                    var promDataUL30 = promNetworkData.ApUl.data.result.Where(x => x.metric.instance == apIP).FirstOrDefault();
-                    var promDataUL7 = promNetworkData.ApUl7Days.data.result.Where(x => x.metric.instance == apIP).FirstOrDefault();
-                    var promDataUL1 = promNetworkData.ApUl24Hours.data.result.Where(x => x.metric.instance == apIP).FirstOrDefault();
+                    var promDataDL = promNetworkData.ApDl.data.result.Where(x => x.metric.instance == apIP).FirstOrDefault();
+                    var promDataUL = promNetworkData.ApUl.data.result.Where(x => x.metric.instance == apIP).FirstOrDefault();
 
                     var promGrp = promNetworkData.ApAvgGrp.data.result.Where(x => x.metric.instance == apIP).FirstOrDefault();
                     var promMplxGain = promNetworkData.ApMPGain.data.result.Where(x => x.metric.instance == apIP).FirstOrDefault();
@@ -125,12 +117,8 @@ namespace cnMaestroReporting.Domain
                         SMs = sub.Count(),
                         Channel = apData[apESN].Channel,
                         Band = apData[apESN].Channel > 3000 && apData[apESN].Channel < 4000 ? 3 : apData[apESN].Channel > 4000 ? 5 : 0,
-                        DL30d = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, apPromCount == 0 ? 0 : decimal.Parse(promDataDL30.value[1]), Utils.Bytes.Unit.Terabyte, 2),
-                        DL7d = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte,  apPromCount == 0 ? 0 : decimal.Parse(promDataDL7.value[1]), Utils.Bytes.Unit.Terabyte, 2),
-                        DL1d = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte,  apPromCount == 0 ? 0 : decimal.Parse(promDataDL1.value[1]), Utils.Bytes.Unit.Terabyte, 2),
-                        UL30d = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, apPromCount == 0 ? 0 : decimal.Parse(promDataUL30.value[1]), Utils.Bytes.Unit.Terabyte, 2),
-                        UL7d = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte,  apPromCount == 0 ? 0 : decimal.Parse(promDataUL7.value[1]), Utils.Bytes.Unit.Terabyte, 2),
-                        UL1d = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte,  apPromCount == 0 ? 0 : decimal.Parse(promDataUL1.value[1]), Utils.Bytes.Unit.Terabyte, 2),
+                        DL = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, apPromCount == 0 ? 0 : decimal.Parse(promDataDL.value[1]), Utils.Bytes.Unit.Terabyte, 2),
+                        UL = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, apPromCount == 0 ? 0 : decimal.Parse(promDataUL.value[1]), Utils.Bytes.Unit.Terabyte, 2),
                         AvgGroupSize = promGrp is not null && promGrp.value.Count() > 0 ? decimal.Parse(promGrp.value[1]) : 0,
                         AvgMplxGain = promMplxGain is not null && promMplxGain.value.Count() > 0 ? decimal.Parse(promMplxGain.value[1]) : 0,
                         AvgSmDistanceM = (int)sub.Where(sel => sel.DistanceM != 0).DefaultIfEmpty().Average(sel => sel.DistanceM),
@@ -145,20 +133,28 @@ namespace cnMaestroReporting.Domain
                         AvgApSnrH = (int)sub.Where(sel => sel.ApSNRH != 0).DefaultIfEmpty().Average(sel => sel.ApSNRH),
                         AvgApSnrV = (int)sub.Where(sel => sel.ApSNRV != 0).DefaultIfEmpty().Average(sel => sel.ApSNRV),
                         WorstApSnr = (int)sub.Where(sel => sel.ApSNRH != 0 && sel.ApSNRV != 0).Select(sel => sel.ApSNRV < sel.ApSNRH ? sel.ApSNRV : sel.ApSNRH).DefaultIfEmpty().Min(),
-                        DlEfficiencyMax = apData[apESN].Statistics.MaxBy(x => x.BitzPerHzDownlink(20, 80)).BitzPerHzDownlink(20, 80),
-                        DlEfficiencyMean = apData[apESN].Statistics.Average(x => x.BitzPerHzDownlink(20, 80)),
-                        DlTputMax = apData[apESN].Statistics.MaxBy(x => x.DownlinkThroughput).DownlinkThroughput / 1000,
-                        DlUtilMean = apData[apESN].Statistics.Average(x => x.DownlinkUtilization),
-                        DlBusyHoursPct = (double)apData[apESN].Statistics.Where(x => x.DownlinkUtilization > 85).Count() / (double)apData[apESN].Statistics.Count()
+                        DlEfficiencyMax = apData[apESN]?.Statistics?.Count() > 0 ? apData[apESN].Statistics.MaxBy(x => x.BitzPerHzDownlink(20, 80))?.BitzPerHzDownlink(20, 80) ?? 0 : 0,
+                        DlEfficiencyMean = apData[apESN]?.Statistics?.Count() > 0 ? apData[apESN].Statistics.Average(x => x.BitzPerHzDownlink(20, 80)) : 0,
+                        DlTputMax = apData[apESN]?.Statistics?.Count() > 0 ? apData[apESN].Statistics.MaxBy(x => x.DownlinkThroughput)?.DownlinkThroughput / 1000  ?? 0 : 0,
+                        DlUtilMean = apData[apESN]?.Statistics?.Count() > 0 ? apData[apESN].Statistics.Average(x => x.DownlinkUtilization) : 0,
+                        DlBusyHoursPct = apData[apESN]?.Statistics?.Count() > 0 ? (double)apData[apESN].Statistics.Where(x => x.DownlinkUtilization > 85).Count() / (double)apData[apESN].Statistics.Count() : 0
                     };
 
-                    var dlUtilization = apData[apESN].Statistics?.Select(s => s.DownlinkUtilization).ToArray();
-                    apAI.DlFramePctl = MathCalc.Percentile(dlUtilization, 0.80);
-                    apAI.DlTputPctl = MathCalc.Percentile(apData[apESN].Statistics?.Select(s => s.DownlinkThroughput).ToArray(), 0.80) / 1024;
+                    if (apData[apESN]?.Statistics?.Count() > 0) { 
+                        var dlUtilization = apData[apESN].Statistics?.Select(s => s.DownlinkUtilization).ToArray();
+                        apAI.DlFramePctl = MathCalc.Percentile(dlUtilization, 0.80);
+                        apAI.DlTputPctl = MathCalc.Percentile(apData[apESN].Statistics?.Select(s => s.DownlinkThroughput).ToArray(), 0.80) / 1024;
 
-                    var usageByHours = MathCalc.BucketizeDouble(dlUtilization, new[] { 20.0, 40.0, 60.0, 80.0, 100.0 });
+                        var usageByHours = MathCalc.BucketizeDouble(dlUtilization, new[] { 20.0, 40.0, 60.0, 80.0, 100.0 });
 
-                    apAI.DlUsageAnalysis = usageByHours.OrderByDescending(a => a.Count).First().Bucket;
+                        apAI.DlUsageAnalysis = usageByHours?.OrderByDescending(a => a.Count)?.FirstOrDefault()?.Bucket ?? 0;
+                    } 
+                    else
+                    {
+                        apAI.DlFramePctl = 0;
+                        apAI.DlTputPctl = 0;
+                        apAI.DlUsageAnalysis = 0;
+                    }
                     apAIs.Add(apAI);
                 }
             }

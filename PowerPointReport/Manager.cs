@@ -10,11 +10,13 @@ using MemoizeRedis;
 using cnMaestroReporting.Reporting.PPTX.Entities;
 using Spire.Presentation.Drawing;
 using cnMaestroReporting.Prometheus.Entities;
+using Utils;
 
 namespace cnMaestroReporting.Output.PPTX
 {
     public class Manager
     {
+        private int days = 7;
         private const int GAP = 10;
         private const int HEADER_HEIGHT = 50;
         private const int SUBHEADER_HEIGHT = 40;
@@ -24,21 +26,24 @@ namespace cnMaestroReporting.Output.PPTX
         private const int SLIDE_WIDTH = 1280;
         private const int SLIDE_HEIGHT = 720;
          
-        private static Color COLOR_BRAND = Color.FromArgb(255, 65, 0);
+        private static Color COLOR_BRAND = Color.FromArgb(15, 134, 202);
         private static Color COLOR_WHITE = Color.White;
-        private static Color COLOR_GREY = Color.FromArgb(87, 88, 90);
-        private static Color[] THEMECOLORS = new[] { COLOR_BRAND, Color.FromArgb(247, 163, 121), Color.FromArgb(250, 195, 168) };
-
-        public Manager(List<SubscriberRadioInfo> smInfo, IDictionary<ESN, AccessPointRadioInfo> apInfo, PromNetworkData promNetworkData)
+        private static Color COLOR_GREY = Color.FromArgb(97, 99, 103);
+        private static Color[] THEMECOLORS = new[] { COLOR_BRAND, Color.FromArgb(253, 183, 27), Color.FromArgb(255, 71, 19) };
+        private const string LowModulationBreakPoint = "128-QAM";
+        public Manager(List<SubscriberRadioInfo> smInfo, IDictionary<ESN, AccessPointRadioInfo> apInfo, PromNetworkData promNetworkData, PromNetworkData promNetworkPrevious, int historyDays = 7)
         {
             Console.WriteLine("\nStarting PPTX Generation");
 
-            // PPTX Only Works with Online SMs
-            smInfo = smInfo.Where(sm => sm.Online == true).ToList();
+            days = historyDays;
+
+            smInfo = smInfo.Where(sm => sm.Online == true).ToList(); // PPTX Only Works with Online SMs
+            //apInfo = apInfo.Where(ap => !ap.Value.Name.Contains("PTP") && !ap.Value.Name.Contains("SCAN")).ToDictionary(ap => ap.Key, ap => ap.Value); // PPTX We don't want to report on SCAN APs or PTP Links
 
             var settings = (FileName: " ", Test: 0);
             double[] width7030 = { 0.70, 0.30 };
             double[] width502525 = { 0.50, 0.25, 0.25 };
+            double[] width3217171717 = { 0.32, 0.17, 0.17, 0.17, 0.17 };
 
             // create a PowerPoint document
             Presentation presentation = new Presentation();
@@ -47,64 +52,172 @@ namespace cnMaestroReporting.Output.PPTX
             presentation.SlideSize.Orientation = SlideOrienation.Landscape;
 
             // SLIDE: SM Modulation Composition
-            IOrderedEnumerable<dlModInfo> dlMod = smInfo.GroupBy(sm => sm.DlMod).Select(x => new dlModInfo(x.Key, (float)x.Count())).OrderBy(x => modToOrder(x.series));
-            IOrderedEnumerable<ulModInfo> ulMod = smInfo.GroupBy(sm => sm.UlMod).Select(x => new ulModInfo(x.Key, (float)x.Count())).OrderBy(x => modToOrder(x.series));
-            IEnumerable<SubscriberRadioInfo> poorModulationDL = smInfo.Where(d => IsLowMod(d.DlMod));
-            IEnumerable<SubscriberRadioInfo> poorModulationUL = smInfo.Where(d => IsLowMod(d.UlMod));
-            IOrderedEnumerable<fullModInfo> modulationBreakdown = dlMod.Join(ulMod, o => o.series, i => i.series, (a, b) => new fullModInfo(a.series, a.Downlink, b.Uplink)).OrderBy(x => modToOrder(x.series));
-            AddOneChartSlide(presentation, ChartType.Bar3DClustered, modulationBreakdown,
-                "Current SM Modulation Overview",
-                "Uplink/Downlink Modulations",
+            var dlModLatest = promNetworkData.SMDlMod.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).GroupBy(a => Int32.Parse(a.metric.modulation)).Select(x => new dlModInfo(intToMod(x.Key - 1), (float)x.Select(x => Math.Round(decimal.Parse(x.value[1]))).Sum())).OrderBy(x => modToInt(x.series));
+            var dlModPrev = promNetworkPrevious.SMDlMod.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).GroupBy(a => Int32.Parse(a.metric.modulation)).Select(x => new dlModInfo(intToMod(x.Key - 1), (float)x.Select(x => Math.Round(decimal.Parse(x.value[1]))).Sum())).OrderBy(x => modToInt(x.series));
+            var dlModChartData = dlModLatest.Join(dlModPrev, o => o.series, i => i.series, (a, b) => new fullModInfoHistory(a.series, a.Downlink, b.Downlink)).OrderBy(x => modToInt(x.series));
+
+            var poorModDLLatest = promNetworkData.SMDlMod.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).Where(d => IsLowMod(Int32.Parse(d.metric.modulation) - 1)).Select(x => Math.Round(decimal.Parse(x.value[1]))).Sum();
+            var poorModDLPrev = promNetworkPrevious.SMDlMod.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).Where(d => IsLowMod(Int32.Parse(d.metric.modulation) - 1)).Select(x => Math.Round(decimal.Parse(x.value[1]))).Sum();
+            var promSmCount = promNetworkData.SMMaxCount.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).Sum(x => decimal.Parse(x.value[1]));
+            var promPrevSmCount = promNetworkPrevious.SMMaxCount.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).Sum(x => decimal.Parse(x.value[1]));
+            var fullFormat = String.Format("+#.{0};-#.{0}", new string('#', 0));
+
+            AddOneChartSlide(presentation, ChartType.ColumnClustered, dlModChartData,
+                "Downlink Modulation Overview",
+                $"Current and Previous ({days} Days)",
                 $"<html><body>" +
-                $"<center><h1>Total SMs</h1>{smInfo.Count().ToString("N0")}<br/><br/>" +
-                $"<h2>Poor DL Modulation SMs</h2>{poorModulationDL.Count().ToString("N0")}<br/>" +
-                $"({((double)poorModulationDL.Count() / (double)smInfo.Count()).ToString("P1")})<br/><br/>" +
-                $"<h2>Poor UL Modulation SMs</h2>{poorModulationUL.Count().ToString("N0")}<br/>" +
-                $"({((double)poorModulationUL.Count() / (double)smInfo.Count()).ToString("P1")})</font></center>" +
-                $"<br/></br><p><i>Note: Poor Modulation set to less than 64-QAM</i></p></body></html>");
+                $"<center><h1>Maximum Total SMs</h1>" +
+                $"This Week: {promSmCount.ToString("N0")} ({(promSmCount - promPrevSmCount).ToString(fullFormat)})<br/>" +
+                $"Last Week: {promPrevSmCount.ToString("N0")}<br/><br/>" +
+                $"<h1>SMs with Poor Modulations</h1>" +
+                $"This Week: {poorModDLLatest.ToString("N0")} ({(poorModDLLatest - poorModDLPrev).ToString(fullFormat)}) [{(poorModDLLatest / promSmCount).ToString("P1")}]<br/>" +
+                $"Last Week: {poorModDLPrev.ToString("N0")} [{(poorModDLPrev / promPrevSmCount).ToString("P1")}]" +
+                $"<br/></br><p><i>Note: Poor Modulation set to less than {LowModulationBreakPoint}</i></p></body></html>");
 
             // SLIDE: Sectors with Poor SM Modulations
-            IEnumerable<IGrouping<string, SubscriberRadioInfo>> smsByLowDlMod = smInfo.Where(y => IsLowMod(y.DlMod)).GroupBy(x => x.APName).OrderBy(x => x.Count()).Reverse();
-            IEnumerable<IGrouping<string, SubscriberRadioInfo>> smsByLowUlMod = smInfo.Where(y => IsLowMod(y.UlMod)).GroupBy(x => x.APName).OrderBy(x => x.Count()).Reverse();
-            AddSlideTwoTables(presentation, "Sectors with Highest # of Poor Modulation SMs (Current)",
-                new TableInfo($"Downlink - Total SMs: {smsByLowDlMod.Sum(y => y.Count())}", new string[] { "Sectors", "< 64-QAM", "Total" }, width502525, smsByLowDlMod.Select(x => new string[] { x.Key, x.Count().ToString(), apInfo.Values.Where(aps => aps.Name == x.Key).First().ConnectedSMs.ToString() })),
-                new TableInfo($"Uplink - Total SMs {smsByLowUlMod.Sum(y => y.Count())}", new string[] { "Sectors", "< 64-QAM", "Total" }, width502525, smsByLowUlMod.Select(x => new string[] { x.Key, x.Count().ToString(), apInfo.Values.Where(aps => aps.Name == x.Key).First().ConnectedSMs.ToString() })));
+
+            var avgWeightedModulations = promNetworkData.SMDlMod.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP")))
+                .GroupBy(prom => prom.metric.instance)
+                .Select(ap =>
+                    ap.Select(m => (m.metric.instance, m.metric.modulation, SMs: Decimal.Parse(m.value[1]), ScoreValue: (int.Parse(m.metric.modulation) * Decimal.Parse(m.value[1])))))
+                .Select(ap =>
+                    (Instance: ap.First().instance, SMs: Math.Round(ap.Sum(i => i.SMs)), WeightedModulation: ap.Sum(i => i.SMs) > 0 ? (ap.Sum(i => i.ScoreValue) / ap.Sum(i => i.SMs)) : 1)).ToArray();
+
+            var avgWeightedModulationsPrevious = promNetworkPrevious.SMDlMod.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP")))
+               .GroupBy(prom => prom.metric.instance)
+               .Select(ap =>
+                   ap.Select(m => (m.metric.instance, m.metric.modulation, SMs: Decimal.Parse(m.value[1]), ScoreValue: (int.Parse(m.metric.modulation) * Decimal.Parse(m.value[1])))))
+               .Select(ap =>
+                    (Instance: ap.First().instance, SMs: Math.Round(ap.Sum(i => i.SMs)), WeightedModulation: ap.Sum(i => i.SMs) > 0 ? (ap.Sum(i => i.ScoreValue) / ap.Sum(i => i.SMs)) : 1)).ToArray();
+
+            var tableValues = promNetworkData.SMDlMod.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).GroupBy(x => x.metric.instance)
+                .Select(ap => new string[] {
+                     lookupApNameByIp(ap.Key, apInfo),
+                     $"{ap.Where(sm => IsLowMod(int.Parse(sm.metric.modulation) - 1)).Sum(sm => sm.value[1].DecimalStringToInt()).ToString()} / " +
+                     $"{ap.Sum(sm => sm.value[1].DecimalStringToInt()).ToString()}",
+                     $"{promNetworkPrevious.SMDlMod.data.result.Where(old => old.metric.instance == ap.Key && IsLowMod(int.Parse(old.metric.modulation) - 1)).Sum(old => old.value[1].DecimalStringToInt()).ToString()} / " +
+                     $"{promNetworkPrevious.SMDlMod.data.result.Where(old => old.metric.instance == ap.Key).Sum(old => old.value[1].DecimalStringToInt()).ToString()}",
+                     intToMod((int)(Math.Floor(avgWeightedModulations.Where(x => x.Instance == ap.Key).FirstOrDefault().WeightedModulation)) - 1).ToString(),
+                     intToMod((int)(Math.Floor(avgWeightedModulationsPrevious.Where(x => x.Instance == ap.Key).FirstOrDefault().WeightedModulation)) - 1).ToString()
+                 }).OrderByDescending(x => int.Parse(x[1].Split("/")[0].Trim())).ToArray();
+
+            AddSlideTwoTables(presentation, "Sectors with Highest # of Poor Modulation SMs",
+                new TableInfo(
+                    $"Poor Downlink Modulation Sectors (Poor / Total)",
+                    new string[] { "Sectors", $"Current <{LowModulationBreakPoint.Replace("-","")}", $"Previous <{LowModulationBreakPoint.Replace("-", "")}", "Current Mod", "Previous Mod" },
+                    width3217171717,
+                    tableValues.Take(15)),
+                new TableInfo(
+                    $"This Week: {poorModDLLatest.ToString("N0")} / Last Week: {poorModDLPrev.ToString("N0")}",
+                    new string[] { "Sectors", $"Current <{LowModulationBreakPoint.Replace("-", "")}", $"Previous <{LowModulationBreakPoint.Replace("-", "")}", "Current Mod", "Previous Mod" },
+                    width3217171717,
+                    tableValues.Skip(15).Take(15))
+             );
+
+
 
             // SLIDE: Canopy Hardware Overview
-            AddTwoChartSlide(presentation, "Network Canopy Hardware Overview",
-                $"Total APs: {apInfo.Count()}", ChartType.Column3DStacked, apInfo.GroupBy(x => x.Value.Hardware).Select(y => new freqCountInfo(y.Key, y.Where(x => x.Value.Channel > 3000 && x.Value.Channel < 5000).Count(), y.Where(x => x.Value.Channel > 5000).Count())),
-                $"Total SMs: {smInfo.Count()}", ChartType.Column3DStacked, smInfo.GroupBy(x => x.Model).Select(y => new freqCountInfo(y.Key, y.Where(x =>
+            AddTwoChartSlide(presentation,
+                "Network Canopy Hardware Overview",
+                $"Total APs: { apInfo.Where(x => !x.Value.Name.Contains("PTP")).Count()}", 
+                ChartType.Column3DStacked, 
+                apInfo
+                    .Where(x => !x.Value.Name.Contains("PTP"))
+                    .GroupBy(x => x.Value.Hardware)
+                    .Select(y => new freqCountInfo(y.Key, y.Where(x => 
+                        x.Value.Channel > 3000 && x.Value.Channel < 5000).Count(), y.Where(x => x.Value.Channel > 5000).Count())),
+                $"Total SMs: { smInfo.Count()}", 
+                ChartType.Column3DStacked, 
+                smInfo
+                    .GroupBy(x => x.Model)
+                    .Select(y => new freqCountInfo(y.Key, y.Where(x =>
                 {
                     var channel = apInfo.Where(ap => ap.Key == x.APEsn).FirstOrDefault().Value.Channel;
                     return channel > 3000 && channel < 5000;
                 }).Count(), y.Where(x => apInfo.Where(ap => ap.Key == x.APEsn).FirstOrDefault().Value.Channel > 5000).Count())));
 
             // SLIDE: Sector Highest Data Usage
-            decimal totalDL = promNetworkData.ApDl.data.result.Sum((x) => decimal.Parse(x.value[1]));
-            decimal totalUL = promNetworkData.ApUl.data.result.Sum((x) => decimal.Parse(x.value[1]));
+            decimal totalDL = promNetworkData.ApDl.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).Sum((x) => decimal.Parse(x.value[1]));
+            decimal totalUL = promNetworkData.ApUl.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).Sum((x) => decimal.Parse(x.value[1]));
             decimal DL = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, totalDL, Utils.Bytes.Unit.Terabyte, 2);
             decimal UL = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, totalUL, Utils.Bytes.Unit.Terabyte, 2);
-            Prometheus.PromResult[] SectorDataUsageDl = promNetworkData.ApDl.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
-            Prometheus.PromResult[] SectorDataUsageUl = promNetworkData.ApUl.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
-            AddSlideTwoTables(presentation, "Sectors with Highest Data Usage (30 days)",
-                new TableInfo($"Downlink - Network Total: {DL}TB", new string[] { "Sectors", "Terabytes" }, width7030, SectorDataUsageDl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString() })),
-                new TableInfo($"Uplink - Network Total: {UL}TB", new string[] { "Sectors", "Terabytes" }, width7030, SectorDataUsageUl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString() })));
+            Prometheus.PromResult[] SectorDataUsageDl = promNetworkData.ApDl.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
+            Prometheus.PromResult[] SectorDataUsageUl = promNetworkData.ApUl.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
+
+            decimal totalDLPrev = promNetworkPrevious.ApDl.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).Sum((x) => decimal.Parse(x.value[1]));
+            decimal totalULPrev = promNetworkPrevious.ApUl.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).Sum((x) => decimal.Parse(x.value[1]));
+            decimal DLPrev = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, totalDLPrev, Utils.Bytes.Unit.Terabyte, 2);
+            decimal ULPrev = Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, totalULPrev, Utils.Bytes.Unit.Terabyte, 2);
+            Prometheus.PromResult[] SectorDataUsageDlPrev = promNetworkPrevious.ApDl.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
+            Prometheus.PromResult[] SectorDataUsageUlPrev = promNetworkPrevious.ApUl.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
+
+            AddSlideTwoTables(presentation, $"Sectors with Highest Data Usage ({days} days)",
+                new TableInfo(
+                    $"Downlink Total Current: {DL}TB / Last: {DLPrev}TB",
+                    new string[] { "Sectors", "Current Terabytes", "Previous Terabytes", "Last Avg Modulation", "Prev Avg Modulation" },
+                    width3217171717, 
+                    SectorDataUsageDl.Select(current => new string[] { 
+                        lookupApNameByIp(current.metric.instance, apInfo), 
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(current.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString(),
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataUsageDlPrev.Where(prev => prev.metric.instance == current.metric.instance).FirstOrDefault().value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString(),
+                        intToMod((int)(Math.Floor(avgWeightedModulations.Where(x => x.Instance == current.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString(),
+                        intToMod((int)(Math.Floor(avgWeightedModulationsPrevious.Where(x => x.Instance == current.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString()
+                    })),
+                new TableInfo(
+                    $"Uplink Total Current: {UL}TB / Last: {ULPrev}TB", 
+                    new string[] { "Sectors", "Current Terabytes", "Previous Terabytes", "Last Avg Modulation", "Prev Avg Modulation" },
+                    width3217171717, 
+                    SectorDataUsageUl.Select(current => new string[] { 
+                        lookupApNameByIp(current.metric.instance, apInfo), 
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(current.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString(),
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataUsageUlPrev.Where(prev => prev.metric.instance == current.metric.instance).FirstOrDefault().value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString(),
+                        intToMod((int)(Math.Floor(avgWeightedModulations.Where(x => x.Instance == current.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString(),
+                        intToMod((int)(Math.Floor(avgWeightedModulationsPrevious.Where(x => x.Instance == current.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString()
+                    })));
 
             // SLIDE: Sectors with Highest Peak Throughput
-            Prometheus.PromResult[] SectorDataTputDl = promNetworkData.ApDlTp.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
-            Prometheus.PromResult[] SectorDataTputUl = promNetworkData.ApUlTp.data.result.OrderBy(x => double.Parse(x.value[1])).Reverse().ToArray();
-            AddSlideTwoTables(presentation, "Sectors with Highest Peak Throughput (30 days)",
-                new TableInfo("Downlink", new string[] { "Sectors", "SMs", "Mbps" }, width502525, SectorDataTputDl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), apInfo.Where(ap => ap.Value.IP == x.metric.instance).FirstOrDefault().Value?.ConnectedSMs, Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Megabyte, 2).ToString() + " Mbps" })),
-                new TableInfo("Uplink", new string[] { "Sectors", "SMs", "Mbps" }, width502525, SectorDataTputUl.Select(x => new string[] { lookupApNameByIp(x.metric.instance, apInfo), apInfo.Where(ap => ap.Value.IP == x.metric.instance).FirstOrDefault().Value?.ConnectedSMs, Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(x.value[1]), Utils.Bytes.Unit.Megabyte, 2).ToString() + " Mbps" })));
-
+            Prometheus.PromResult[] SectorDataTputDl = promNetworkData.ApDlTp.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).OrderByDescending(x => double.Parse(x.value[1])).ToArray();
+            Prometheus.PromResult[] SectorDataTputUl = promNetworkData.ApUlTp.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).OrderByDescending(x => double.Parse(x.value[1])).ToArray();
+            Prometheus.PromResult[] SectorDataTputDlPrev = promNetworkPrevious.ApDlTp.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).OrderByDescending(x => double.Parse(x.value[1])).ToArray();
+            Prometheus.PromResult[] SectorDataTputUlPrev = promNetworkPrevious.ApUlTp.data.result.Where(x => !(lookupApNameByIp(x.metric.instance, apInfo).Contains("PTP"))).OrderByDescending(x => double.Parse(x.value[1])).ToArray();
+            AddSlideTwoTables(presentation, $"Sectors with Highest Peak Throughput ({days} days)",
+                new TableInfo(
+                    "Downlink",
+                    //new string[] { "Sectors", "Current SMs", "Previous SMs", "Current Mbps", "Previous Mbps" },
+                    new string[] { "Sectors", "Current Mbps", "Previous Mbps", "Last Avg Modulation", "Prev Avg Modulation" },
+                    width3217171717,
+                    SectorDataTputDl.Select(d => new string[] {
+                        lookupApNameByIp(d.metric.instance, apInfo),
+                        //promNetworkData.SMMaxCount.data.result.Where(x => x.metric.instance == d.metric.instance).FirstOrDefault().value[1],
+                        //promNetworkPrevious.SMMaxCount.data.result.Where(x => x.metric.instance == d.metric.instance).FirstOrDefault().value[1],
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(d.value[1]), Utils.Bytes.Unit.Megabyte, 0).ToString() + " Mbps",
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataTputDlPrev.Where(x => x.metric.instance == d.metric.instance).FirstOrDefault().value[1]), Utils.Bytes.Unit.Megabyte, 0).ToString() + " Mbps",
+                        intToMod((int)(Math.Floor(avgWeightedModulations.Where(x => x.Instance == d.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString(),
+                        intToMod((int)(Math.Floor(avgWeightedModulationsPrevious.Where(x => x.Instance == d.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString()
+                    })),
+                new TableInfo(
+                    "Uplink",
+                    //new string[] { "Sectors", "Current SMs", "Previous SMs", "Current Mbps", "Previous Mbps" },
+                    new string[] { "Sectors", "Current Mbps", "Previous Mbps", "Last Avg Modulation", "Prev Avg Modulation" },
+                    width3217171717,
+                    SectorDataTputUl.Select(u => new string[] {
+                        lookupApNameByIp(u.metric.instance, apInfo),
+                        //promNetworkData.SMMaxCount.data.result.Where(x => x.metric.instance == u.metric.instance).FirstOrDefault().value[1],
+                        //promNetworkPrevious.SMMaxCount.data.result.Where(x => x.metric.instance == u.metric.instance).FirstOrDefault().value[1],
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(u.value[1]), Utils.Bytes.Unit.Megabyte, 0).ToString() + " Mbps",
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataTputUlPrev.Where(x => x.metric.instance == u.metric.instance).FirstOrDefault().value[1]), Utils.Bytes.Unit.Megabyte, 0).ToString() + " Mbps",
+                        intToMod((int)(Math.Floor(avgWeightedModulations.Where(x => x.Instance == u.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString(),
+                        intToMod((int)(Math.Floor(avgWeightedModulationsPrevious.Where(x => x.Instance == u.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString()
+                    }))
+                );
             // SLIDE: Outages on canopy network
-            IEnumerable<(string Tower, int Downtime)> downtimes = apInfo.Values.Select(ap => (Tower: ap.Tower, Downtime: ap.Alarms.Sum(x => x.duration))).OrderBy(x => x.Downtime).DistinctBy(x => x.Tower).Where(x => x.Downtime > 0).Reverse();
-            AddSlideTwoTables(presentation, "Canopy Site Outages (30 days)",
+            IEnumerable <(string Tower, int Downtime)> downtimes = apInfo.Values.Select(ap => (Tower: ap.Tower, Downtime: ap.Alarms.Sum(x => x.duration))).OrderBy(x => x.Downtime).DistinctBy(x => x.Tower).Where(x => x.Downtime > 60).Reverse();
+            AddSlideTwoTables(presentation, $"Canopy Site Outages ({days} days)",
                 new TableInfo("Total Canopy Downtime by Site", new string[] { "Site", "Duration" }, width7030, downtimes.Take(15).Select(x => new string[] { x.Tower, TimeSpan.FromSeconds(x.Downtime).ToString() })),
                 new TableInfo("Total Canopy Downtime by Site", new string[] { "Site", "Duration" }, width7030, downtimes.Skip(15).Take(15).Select(x => new string[] { x.Tower, TimeSpan.FromSeconds(x.Downtime).ToString() })));
 
             // Compute filename
-            string FileName = GenerateFileName(settings);
+            string FileName = GenerateFileName(settings, days);
 
             presentation.Slides.RemoveAt(0); // Remove first slide since our subfunctions skip it.
 
@@ -112,11 +225,11 @@ namespace cnMaestroReporting.Output.PPTX
             Console.WriteLine("\nPPTX Generation Completed");
         }
 
-        private static string GenerateFileName((string FileName, int Test) settings)
+        private static string GenerateFileName((string FileName, int Test) settings, int days)
         {
             string FileName;
             if (String.IsNullOrWhiteSpace(settings.FileName))
-                FileName = $"{DateTime.Now:yyyy-MM-dd} - Monthly Report.pptx";
+                FileName = $"{DateTime.Now:yyyy-MM-dd} - Past {days}-Day Report.pptx";
             else
                 FileName = settings.FileName;
             return FileName;
@@ -203,13 +316,14 @@ namespace cnMaestroReporting.Output.PPTX
             paragraph.Text = title;
             paragraph.Alignment = TextAlignmentType.Center;
             paragraph.TextRanges[0].Fill.SolidColor.Color = COLOR_WHITE;
-            paragraph.TextRanges[0].FontHeight = 28;
+            paragraph.TextRanges[0].FontHeight = 24;
         }
 
         private static void AddChart(ISlide slide, RectangleF rect, string chartTitle, ChartType chartType, IEnumerable<ISeriesInfo> data)
         {
             if (data is null)
                 return;
+
             var columns = data.FirstOrDefault().GetType().GetProperties()?.Where(p => p.Name != "series").Select(n => n.Name).ToArray();
 
             IChart chart = slide.Shapes.AppendChart(chartType, rect);
@@ -236,6 +350,7 @@ namespace cnMaestroReporting.Output.PPTX
             foreach (var mod in data)
             {
                 cols = 0;
+
                 // Category Label
                 chart.ChartData[row, cols].Value = mod.series;
 
@@ -255,6 +370,15 @@ namespace cnMaestroReporting.Output.PPTX
                 chart.Series[i].Values = chart.ChartData[row: 1, column: i + 1, lastRow: data.Count(), lastColumn: i + 1];
                 chart.Series[i].Fill.FillType = FillFormatType.Solid;
                 chart.Series[i].Fill.SolidColor.Color = THEMECOLORS[i];
+
+                if (chartType == ChartType.ColumnClustered)
+                {
+                    chart.Series[i].DataLabels.SeriesNameVisible = false;
+                    chart.Series[i].DataLabels.LegendKeyVisible = false;
+                    chart.Series[i].DataLabels.LabelValueVisible = true;
+                    chart.Series[i].DataLabels.Position = ChartDataLabelPosition.OutsideEnd;
+                    chart.Series[i].DataLabels.TextProperties.Paragraphs[0].DefaultCharacterProperties.FontHeight = 16;
+                }
             }
 
             //apply built-in chart style  
@@ -306,7 +430,7 @@ namespace cnMaestroReporting.Output.PPTX
         }
 
         #region Modulation Functions
-        static int modToOrder(string mod)
+        static int modToInt(string mod)
         {
             return mod switch
             {
@@ -321,9 +445,30 @@ namespace cnMaestroReporting.Output.PPTX
                 _ => throw new ArgumentOutOfRangeException($"Invalid Modulation {mod}")
             };
         }
+
+        static string intToMod(int mod)
+        {
+            return mod switch
+            {
+                -1 => "WEIRD",
+                0 => "BPSK",
+                1 => "QPSK",
+                2 => "8-QAM",
+                3 => "16-QAM",
+                4 => "32-QAM",
+                5 => "64-QAM",
+                6 => "128-QAM",
+                7 => "256-QAM",
+                _ => throw new ArgumentOutOfRangeException($"Invalid Modulation {mod}")
+            };
+        }
         private static bool IsLowMod(string d)
         {
-            return !d.Contains("256-") && !d.Contains("64-") && !d.Contains("128-");
+            return IsLowMod(modToInt(d));
+        }
+        private static bool IsLowMod(int d)
+        {
+            return d < modToInt(LowModulationBreakPoint);
         }
         #endregion
 

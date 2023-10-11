@@ -6,11 +6,15 @@
     },
     "PMP 450i": {
       "AntennaGain": 17,
-      "MaxTransmit": 27
+      "MaxTransmit": 28
     },
     "PMP 450m": {
-      "AntennaGain": 14,
-      "MaxTransmit": 24
+      "AntennaGain": 15,
+      "MaxTransmit": 33
+    },
+    "PMP 450b High Gain": {
+      "AntennaGain": 23,
+      "MaxTransmit": 26
     }
   },
   "SM": {
@@ -23,8 +27,8 @@
       "MaxTransmit": 25
     },
     "PMP 450b High Gain": {
-      "AntennaGain": 24,
-      "MaxTransmit": 25
+      "AntennaGain": 23,
+      "MaxTransmit": 26
     },
     "PMP 450b": {
       "AntennaGain": 16,

@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using Flurl.Http;
 using Flurl;
-using static Utils.DateTimeExtensions;
+using static cnMaestroReporting.Prometheus.Utils.DateTimeExtensions;
 
 namespace cnMaestroReporting.Prometheus
 {

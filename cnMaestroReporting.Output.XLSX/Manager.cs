@@ -7,16 +7,17 @@ using OfficeOpenXml.ConditionalFormatting;
 using OfficeOpenXml.Table;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using CnMaestroWebAPI = cnmWebApi;
 
 namespace cnMaestroReporting.Output.XLSX
 {
     public class Manager
     {
         private ExcelPackage ExcelDocSM { get; }
-
         private ExcelPackage ExcelDocAP { get; }
         private ExcelPackage ExcelDocAP2 { get; }
         public Settings settings = new Settings();
@@ -55,29 +56,29 @@ namespace cnMaestroReporting.Output.XLSX
         /// This takes our Enumerable data and generates an Excel Worksheet to a filename.
         /// </summary>
         /// <param name="subRadioInfo"></param>
-        public void Generate(IEnumerable<SubscriberRadioInfo> subRadioInfo, IDictionary<ESN, AccessPointRadioInfo> apRadioInfo, PromNetworkData promNetworkData, IEnumerable<KeyValuePair<string, CnLocation>> allTowers, int days = 7)
+        public void Generate(IEnumerable<SubscriberRadioInfo> subRadioInfo, IDictionary<ESN, AccessPointRadioInfo> apRadioInfo, PromNetworkData promNetworkData, IEnumerable<KeyValuePair<string, CnLocation>> allTowers, IImmutableDictionary<string, Dictionary<DateOnly, CnMaestroWebAPI.DataUsage>> smGbOfDataUsage, int days = 7)
         {
-            GenerateSubscriberWorkSheet(subRadioInfo.Where(dev =>
-               (dev.SmAPL < settings.LowSignal || dev.ApAPL < settings.LowSignal)), 
-               "SMs with Low Power Levels");
-
-            GenerateSubscriberWorkSheet(subRadioInfo.Where(dev =>
-               (dev.ApSNRH != 0 && dev.ApSNRV != 0) && 
-               (dev.SmSNRH < settings.LowSNR || dev.SmSNRV < settings.LowSNR || dev.ApSNRH < settings.LowSNR || dev.ApSNRV < settings.LowSNR)), 
-               "SMs with Low SNR");
+            //GenerateSubscriberWorkSheet(subRadioInfo.Where(dev =>
+            //   (dev.SmAPL < settings.LowSignal || dev.ApAPL < settings.LowSignal)), 
+            //   "SMs with Low Power Levels");
+            //
+            //GenerateSubscriberWorkSheet(subRadioInfo.Where(dev =>
+            //   (dev.ApSNRH != 0 && dev.ApSNRV != 0) && 
+            //   (dev.SmSNRH < settings.LowSNR || dev.SmSNRV < settings.LowSNR || dev.ApSNRH < settings.LowSNR || dev.ApSNRV < settings.LowSNR)), 
+            //   "SMs with Low SNR");
 
             GenerateSubscriberWorkSheet(subRadioInfo, "All Subscribers");
 
             // Generate the AP Data and Worksheets
             var apAverageInfo = AccessPointAverageInfo.GenerateFromSMandAPData(subRadioInfo, apRadioInfo, promNetworkData, allTowers);
 
-            GenerateAccessPointWorksheet(apAverageInfo.Where(dev => 
-                (dev.AvgSmPl < settings.LowSignal || dev.AvgSmPl < settings.LowSignal)), 
-                "APs with Low Avg SM Power Levels");
-
-            GenerateAccessPointWorksheet(apAverageInfo.Where(dev => 
-                (dev.AvgApSnrH < settings.LowSNR || dev.AvgApSnrV < settings.LowSignal || dev.AvgSmSnrH < settings.LowSNR || dev.AvgSmSnrV < settings.LowSignal)), 
-                "APs with Low Avg SM SNRs");
+            //GenerateAccessPointWorksheet(apAverageInfo.Where(dev => 
+            //    (dev.AvgSmPl < settings.LowSignal || dev.AvgSmPl < settings.LowSignal)), 
+            //    "APs with Low Avg SM Power Levels");
+            //
+            //GenerateAccessPointWorksheet(apAverageInfo.Where(dev => 
+            //    (dev.AvgApSnrH < settings.LowSNR || dev.AvgApSnrV < settings.LowSignal || dev.AvgSmSnrH < settings.LowSNR || dev.AvgSmSnrV < settings.LowSignal)), 
+            //    "APs with Low Avg SM SNRs");
          
             GenerateAccessPointAvailabilityWorksheet(apAverageInfo, "All AccessPoint", days);
         }
@@ -230,11 +231,11 @@ namespace cnMaestroReporting.Output.XLSX
         public void Save()
         {
             string FileNameSM = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Subscriber Report.xlsx"; ;
-            string FileNameAP = $"{DateTime.Now.ToString("yyyy-MM-dd")} - AP Report.xlsx"; ;
-            string FileNameAP2 = $"{DateTime.Now.ToString("yyyy-MM-dd")} - AP Availability Report.xlsx"; ;
+            //string FileNameAP = $"{DateTime.Now.ToString("yyyy-MM-dd")} - Bad AP Report.xlsx"; ;
+            string FileNameAP2 = $"{DateTime.Now.ToString("yyyy-MM-dd")} - AP Report.xlsx"; ;
 
             ExcelDocSM.SaveAs(new FileInfo(FileNameSM));
-            ExcelDocAP.SaveAs(new FileInfo(FileNameAP));
+            //ExcelDocAP.SaveAs(new FileInfo(FileNameAP));
             ExcelDocAP2.SaveAs(new FileInfo(FileNameAP2));
         }
 

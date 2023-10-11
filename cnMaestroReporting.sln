@@ -23,6 +23,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EngageIP", "..\FixedDeviceA
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cnMaestroAPI", "..\Libraries\cnMaestroAPI\cnMaestroAPI\cnMaestroAPI.csproj", "{D0A8FB54-7928-4009-819F-A274B15BABEE}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MemoizeRedis", "..\Libraries\MemoizeRedis\MemoizeRedis.csproj", "{AE4ED635-3B30-4F2C-B393-E18F264B3AF9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -111,6 +113,14 @@ Global
 		{D0A8FB54-7928-4009-819F-A274B15BABEE}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D0A8FB54-7928-4009-819F-A274B15BABEE}.Release|x64.ActiveCfg = Release|x64
 		{D0A8FB54-7928-4009-819F-A274B15BABEE}.Release|x64.Build.0 = Release|x64
+		{AE4ED635-3B30-4F2C-B393-E18F264B3AF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AE4ED635-3B30-4F2C-B393-E18F264B3AF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AE4ED635-3B30-4F2C-B393-E18F264B3AF9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AE4ED635-3B30-4F2C-B393-E18F264B3AF9}.Debug|x64.Build.0 = Debug|Any CPU
+		{AE4ED635-3B30-4F2C-B393-E18F264B3AF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AE4ED635-3B30-4F2C-B393-E18F264B3AF9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AE4ED635-3B30-4F2C-B393-E18F264B3AF9}.Release|x64.ActiveCfg = Release|Any CPU
+		{AE4ED635-3B30-4F2C-B393-E18F264B3AF9}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

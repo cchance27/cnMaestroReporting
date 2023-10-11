@@ -1,16 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="cnmWebApi" Version="0.0.3-alpha.1" />
     <PackageReference Include="FreeSpire.Presentation" Version="6.8.5" />
-    <PackageReference Include="MemoizeRedis" Version="1.1.0" />
     <PackageReference Include="morelinq" Version="3.3.2" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Libraries\cnMaestroAPI\cnMaestroAPI\cnMaestroAPI.csproj" />
+    <ProjectReference Include="..\..\Libraries\MemoizeRedis\MemoizeRedis.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Domain\cnMaestroReporting.Domain.csproj" />
     <ProjectReference Include="..\cnMaestroReporting.Prometheus\cnMaestroReporting.Prometheus.csproj" />
   </ItemGroup>

@@ -114,11 +114,30 @@ namespace cnMaestroReporting.Domain
 
         public double EIPValue { get; set; }
 
+        public double DLGBDataUsage { get; set; }
+        public double ULGBDataUsage { get; set; }
+
+        public double RFWeight { 
+            get {
+                double RFMultiplierDL = RFToMultiplier(DownlinkModulation);
+                double RFMultiplierUL = RFToMultiplier(UplinkModulation);
+
+                return (DLGBDataUsage * RFMultiplierDL) + (ULGBDataUsage + RFMultiplierUL);
+            } 
+        }
+
         private static string ModToQAM(int canopyModulation)
         {
             canopyModulation = canopyModulation - 1;
             string[] modulations = { "BPSK", "QPSK", "8-QAM", "16-QAM", "32-QAM", "64-QAM", "128-QAM", "256-QAM" };
             return modulations[canopyModulation];
+        }
+
+        private static double RFToMultiplier(string Modulation)
+        {
+            double RFMultiplier = 9 - int.Parse(Modulation?.Split("X")[0] ?? "8");
+            RFMultiplier = (Modulation?.Split("-")[1] ?? "B") == "A" ? RFMultiplier * 2 : RFMultiplier;
+            return Math.Pow(RFMultiplier, RFMultiplier / 4);
         }
     }
 }

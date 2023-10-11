@@ -14,17 +14,17 @@ namespace cnMaestroReporting.Domain
         public int AntennaGain { get; set; }
         public int MaxTransmit { get; set; }
 
-        public RFCalc.Radio Radio(int? actualTxPower) => new RFCalc.Radio
+        public RFCalc.Radio Radio(int? txPower) => new RFCalc.Radio
         {
             AntennaGain = AntennaGain,
-            RadioPower = actualTxPower ?? MaxTransmit,
+            RadioPower = txPower ?? MaxTransmit,
             InternalLoss = 1
         };
 
-        public RFCalc.Radio Radio(int? actualTxPower, int AntennaGainOverride) => new RFCalc.Radio
+        public RFCalc.Radio Radio(int? txPower, int AntennaGainOverride) => new RFCalc.Radio
         {
             AntennaGain = AntennaGainOverride,
-            RadioPower = actualTxPower ?? MaxTransmit,
+            RadioPower = txPower ?? MaxTransmit,
             InternalLoss = 1
         };
     }

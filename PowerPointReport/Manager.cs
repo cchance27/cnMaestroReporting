@@ -284,7 +284,7 @@ namespace cnMaestroReporting.Output.PPTX
                     SectorDataUsageDl.Select(current => new string[] { 
                         apInfo.lookupApNameByIp(current.metric.instance), 
                         Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(current.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString(),
-                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataUsageDlPrev.Where(prev => prev.metric.instance == current.metric.instance).FirstOrDefault().value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString(),
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataUsageDlPrev.Where(prev => prev.metric.instance == current.metric.instance).FirstOrDefault()?.value[1] ?? "0"), Utils.Bytes.Unit.Terabyte, 2).ToString(),
                         intToMod((int)(Math.Floor(avgWeightedModulations.Where(x => x.Instance == current.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString(),
                         intToMod((int)(Math.Floor(avgWeightedModulationsPrevious.Where(x => x.Instance == current.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString()
                     })),
@@ -295,7 +295,7 @@ namespace cnMaestroReporting.Output.PPTX
                     SectorDataUsageUl.Select(current => new string[] { 
                         apInfo.lookupApNameByIp(current.metric.instance), 
                         Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(current.value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString(),
-                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataUsageUlPrev.Where(prev => prev.metric.instance == current.metric.instance).FirstOrDefault().value[1]), Utils.Bytes.Unit.Terabyte, 2).ToString(),
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataUsageDlPrev.Where(prev => prev.metric.instance == current.metric.instance).FirstOrDefault()?.value[1] ?? "0"), Utils.Bytes.Unit.Terabyte, 2).ToString(),
                         intToMod((int)(Math.Floor(avgWeightedModulations.Where(x => x.Instance == current.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString(),
                         intToMod((int)(Math.Floor(avgWeightedModulationsPrevious.Where(x => x.Instance == current.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString()
                     })));
@@ -316,7 +316,7 @@ namespace cnMaestroReporting.Output.PPTX
                         //promNetworkData.SMMaxCount.data.result.Where(x => x.metric.instance == d.metric.instance).FirstOrDefault().value[1],
                         //promNetworkPrevious.SMMaxCount.data.result.Where(x => x.metric.instance == d.metric.instance).FirstOrDefault().value[1],
                         Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(d.value[1]), Utils.Bytes.Unit.Megabyte, 0).ToString() + " Mbps",
-                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataTputDlPrev.Where(x => x.metric.instance == d.metric.instance).FirstOrDefault().value[1]), Utils.Bytes.Unit.Megabyte, 0).ToString() + " Mbps",
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataTputDlPrev.Where(x => x.metric.instance == d.metric.instance).FirstOrDefault()?.value[1] ?? "0"), Utils.Bytes.Unit.Megabyte, 0).ToString() + " Mbps",
                         intToMod((int)(Math.Floor(avgWeightedModulations.Where(x => x.Instance == d.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString(),
                         intToMod((int)(Math.Floor(avgWeightedModulationsPrevious.Where(x => x.Instance == d.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString()
                     })),
@@ -330,7 +330,7 @@ namespace cnMaestroReporting.Output.PPTX
                         //promNetworkData.SMMaxCount.data.result.Where(x => x.metric.instance == u.metric.instance).FirstOrDefault().value[1],
                         //promNetworkPrevious.SMMaxCount.data.result.Where(x => x.metric.instance == u.metric.instance).FirstOrDefault().value[1],
                         Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(u.value[1]), Utils.Bytes.Unit.Megabyte, 0).ToString() + " Mbps",
-                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataTputUlPrev.Where(x => x.metric.instance == u.metric.instance).FirstOrDefault().value[1]), Utils.Bytes.Unit.Megabyte, 0).ToString() + " Mbps",
+                        Utils.Bytes.FromTo(Utils.Bytes.Unit.Byte, decimal.Parse(SectorDataTputUlPrev.Where(x => x.metric.instance == u.metric.instance).FirstOrDefault()?.value[1] ?? "0"), Utils.Bytes.Unit.Megabyte, 0).ToString() + " Mbps",
                         intToMod((int)(Math.Floor(avgWeightedModulations.Where(x => x.Instance == u.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString(),
                         intToMod((int)(Math.Floor(avgWeightedModulationsPrevious.Where(x => x.Instance == u.metric.instance).FirstOrDefault().WeightedModulation)) - 1).ToString()
                     }))

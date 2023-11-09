@@ -16,6 +16,7 @@ using Utils;
 using static cnMaestroReporting.Prometheus.PrometheusExtension;
 using System.Collections.Immutable;
 using CnMaestroWebAPI = cnmWebApi;
+
 namespace cnMaestroReporting.CLI
 {
     static class Program
@@ -46,8 +47,12 @@ namespace cnMaestroReporting.CLI
 
             days = _generalConfig.GetValue<int>("days");
 
+            //await DeleteOldOfflineSMs(_cnAPIManager, 90);
+            //return;
+
             await _cnWeb.Login();
 
+ 
             Console.WriteLine("Getting cnMaestro Towers...");
             IList<CnTower> towersFromApi = await Memoize.WithRedisAsync(() => _cnAPIManager.GetTowersAsync());
             Console.WriteLine("Getting cnMaestro Statistics...");
@@ -102,7 +107,7 @@ namespace cnMaestroReporting.CLI
             }).ToList();
 
             // Output to various ways.
-            OutputPPTX(smInfo, apInfo, promNetworkData, promNetworkDataPrevious, smGbOfDataUsage);
+            //OutputPPTX(smInfo, apInfo, promNetworkData, promNetworkDataPrevious, smGbOfDataUsage);
             OutputXLSX(towersFromApi, smInfo, apInfo, promNetworkData, smGbOfDataUsage);
             //OutputKMZ(towersFromApi, apInfo, smInfo, promNetworkData);
             //OutputPTPPRJ(towersFromApi, apInfo, smInfo);
